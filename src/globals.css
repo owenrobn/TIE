@@ -4,19 +4,19 @@
 
 @layer base {
   :root {
-    --background: 30 25% 75%; /* Deeper, richer light brown */
+    --background: 30 25% 95%; /* Very light, creamy brown */
     --foreground: 120 40% 15%; /* Deep forest green */
 
-    --card: 30 30% 85%; /* Slightly lighter brown for card background */
+    --card: 30 30% 90%; /* Light brown for card background */
     --card-foreground: 120 40% 15%;
 
-    --popover: 30 30% 85%;
+    --popover: 30 30% 90%;
     --popover-foreground: 120 40% 15%;
 
     --primary: 120 70% 30%; /* Vibrant, deep green */
     --primary-foreground: 0 0% 98%; /* Off-white */
 
-    --secondary: 30 20% 60%; /* Deeper, muted brown */
+    --secondary: 30 20% 60%; /* Muted brown */
     --secondary-foreground: 120 40% 15%;
 
     --muted: 30 20% 60%;
@@ -34,7 +34,7 @@
 
     --radius: 0.5rem;
 
-    --sidebar-background: 30 25% 70%; /* Even deeper brown for sidebar */
+    --sidebar-background: 30 25% 88%; /* Light, distinct brown for sidebar */
     --sidebar-foreground: 120 40% 10%;
     --sidebar-primary: 120 70% 25%; /* Even deeper primary green for sidebar active */
     --sidebar-primary-foreground: 0 0% 98%;
@@ -48,26 +48,26 @@
   }
 
   .dark {
-    --background: 120 20% 8%; /* Very deep, dark forest green */
-    --foreground: 30 40% 85%; /* Slightly less bright brown for text */
+    --background: 120 20% 5%; /* Very deep, almost black forest green */
+    --foreground: 30 40% 90%; /* Warm, light brown */
 
-    --card: 120 20% 12%;
-    --card-foreground: 30 40% 85%;
+    --card: 120 20% 10%;
+    --card-foreground: 30 40% 90%;
 
-    --popover: 120 20% 12%;
-    --popover-foreground: 30 40% 85%;
+    --popover: 120 20% 10%;
+    --popover-foreground: 30 40% 90%;
 
     --primary: 120 60% 45%; /* Vibrant, slightly lighter green for dark mode primary */
     --primary-foreground: 0 0% 98%;
 
     --secondary: 120 15% 20%; /* Muted dark green */
-    --secondary-foreground: 30 40% 85%;
+    --secondary-foreground: 30 40% 90%;
 
     --muted: 120 15% 20%;
     --muted-foreground: 30 15% 60%; /* Softer light brown */
 
     --accent: 120 30% 30%; /* Medium dark green accent */
-    --accent-foreground: 30 40% 85%;
+    --accent-foreground: 30 40% 90%;
 
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 0 0% 98%;
@@ -76,7 +76,7 @@
     --input: 120 15% 25%;
     --ring: 120 60% 45%; /* Primary green ring */
 
-    --sidebar-background: 120 20% 5%; /* Even deeper dark green for sidebar */
+    --sidebar-background: 120 20% 3%; /* Even deeper dark green for sidebar */
     --sidebar-foreground: 30 40% 95%;
     --sidebar-primary: 120 60% 40%;
     --sidebar-primary-foreground: 0 0% 100%;
