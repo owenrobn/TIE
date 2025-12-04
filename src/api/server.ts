@@ -2,7 +2,8 @@
 
 import express, { Request, Response } from 'express';
 import { TIEEngine } from '../modules/engine/TIEEngine';
-import { TestnetFaucetManager } from '../modules/automation/TestnetFaucetManager'; // Import TestnetFaucetManager
+import { TestnetFaucetManager } from '../modules/automation/TestnetFaucetManager';
+import { DevnetDeployer } from '../modules/automation/DevnetDeployer'; // Import DevnetDeployer
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -10,9 +11,10 @@ const port = process.env.PORT || 3000;
 // Middleware
 app.use(express.json());
 
-// Initialize TIE Engine and TestnetFaucetManager
+// Initialize TIE Engine, TestnetFaucetManager, and DevnetDeployer
 const tieEngine = new TIEEngine();
-const faucetManager = new TestnetFaucetManager(); // Instantiate TestnetFaucetManager
+const faucetManager = new TestnetFaucetManager();
+const devnetDeployer = new DevnetDeployer(); // Instantiate DevnetDeployer
 
 // Routes
 app.get('/api/health', (req: Request, res: Response) => {
@@ -55,7 +57,7 @@ app.get('/api/signals', (req: Request, res: Response) => {
   res.json(signals);
 });
 
-// New routes for Testnet Faucet Manager
+// Routes for Testnet Faucet Manager
 app.get('/api/faucets', (req: Request, res: Response) => {
   const faucets = faucetManager.getAvailableFaucets();
   res.json(faucets);
@@ -78,6 +80,50 @@ app.post('/api/faucets/request', async (req: Request, res: Response) => {
     }
   } catch (error: any) {
     res.status(500).json({ success: false, message: error.message || 'Failed to request funds.' });
+  }
+});
+
+// New routes for Devnet Deployer
+app.get('/api/devnets', (req: Request, res: Response) => {
+  const devnets = devnetDeployer.getDevnetConfigs();
+  res.json(devnets);
+});
+
+app.get('/api/deployments', (req: Request, res: Response) => {
+  const { devnetId } = req.query;
+  const deployments = devnetDeployer.getDeployments(devnetId as string);
+  res.json(deployments);
+});
+
+app.post('/api/deploy', async (req: Request, res: Response) => {
+  const { devnetId, contractName, bytecode, abi, constructorArgs } = req.body;
+  if (!devnetId || !contractName || !bytecode || !abi) {
+    return res.status(400).json({ success: false, message: 'Devnet ID, contract name, bytecode, and ABI are required.' });
+  }
+
+  try {
+    const contractAddress = await devnetDeployer.deployContract(devnetId, contractName, bytecode, abi, constructorArgs);
+    res.json({ success: true, message: 'Contract deployed successfully.', contractAddress });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message || 'Failed to deploy contract.' });
+  }
+});
+
+app.post('/api/verify', async (req: Request, res: Response) => {
+  const { devnetId, contractAddress, contractName, sourceCode } = req.body;
+  if (!devnetId || !contractAddress || !contractName || !sourceCode) {
+    return res.status(400).json({ success: false, message: 'Devnet ID, contract address, contract name, and source code are required.' });
+  }
+
+  try {
+    const success = await devnetDeployer.verifyContract(devnetId, contractAddress, contractName, sourceCode);
+    if (success) {
+      res.json({ success: true, message: 'Contract verified successfully.' });
+    } else {
+      res.status(400).json({ success: false, message: 'Contract verification failed.' });
+    }
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message || 'Failed to verify contract.' });
   }
 });
 

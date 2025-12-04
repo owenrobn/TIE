@@ -11,10 +11,17 @@ import {
   RotateCcw,
   Settings,
   Bot,
-  Zap
+  Zap,
+  Upload,
+  CheckCircle,
+  XCircle,
+  Network
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { Input } from '@/components/ui/input'; // Import Input for address field
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 interface Faucet {
   id: string;
@@ -23,6 +30,23 @@ interface Faucet {
   chainId: string;
   token: string;
   cooldown: number; // in milliseconds
+}
+
+interface DevnetConfig {
+  id: string;
+  name: string;
+  rpcUrl: string;
+  chainId: string;
+}
+
+interface Deployment {
+  id: string;
+  devnetId: string;
+  contractName: string;
+  contractAddress: string;
+  deployer: string;
+  timestamp: string;
+  status?: 'verified' | 'unverified' | 'failed';
 }
 
 const Automation = () => {
@@ -77,26 +101,28 @@ const Automation = () => {
   const [faucets, setFaucets] = useState<Faucet[]>([]);
   const [userAddress, setUserAddress] = useState<string>('');
   const [loadingFaucets, setLoadingFaucets] = useState(true);
-  const [requestingFunds, setRequestingFunds] = useState<string | null>(null); // Stores faucet ID being requested
+  const [requestingFunds, setRequestingFunds] = useState<string | null>(null);
 
-  const [deployments] = useState([
-    {
-      id: 'deploy-001',
-      contract: 'StakingRewards',
-      chain: 'Local Anvil',
-      address: '0x742d35Cc6634C0532925a3b844Bc454e4438f44e',
-      timestamp: '2023-06-15T14:30:00Z',
-      status: 'verified'
-    },
-    {
-      id: 'deploy-002',
-      contract: 'GovernanceToken',
-      chain: 'Hardhat Network',
-      address: '0x1f9840a85d5aF5bf1D1762F925BDADdC4201F984',
-      timestamp: '2023-06-15T13:45:00Z',
-      status: 'verified'
-    }
-  ]);
+  const [devnets, setDevnets] = useState<DevnetConfig[]>([]);
+  const [deployments, setDeployments] = useState<Deployment[]>([]);
+  const [loadingDevnets, setLoadingDevnets] = useState(true);
+  const [loadingDeployments, setLoadingDeployments] = useState(true);
+
+  const [deployForm, setDeployForm] = useState({
+    devnetId: '',
+    contractName: '',
+    bytecode: '',
+    abi: '',
+    constructorArgs: ''
+  });
+  const [verifyingForm, setVerifyingForm] = useState({
+    devnetId: '',
+    contractAddress: '',
+    contractName: '',
+    sourceCode: ''
+  });
+  const [deploying, setDeploying] = useState(false);
+  const [verifying, setVerifying] = useState(false);
 
   useEffect(() => {
     const fetchFaucets = async () => {
@@ -118,7 +144,51 @@ const Automation = () => {
       }
     };
 
+    const fetchDevnets = async () => {
+      try {
+        const response = await fetch('/api/devnets');
+        if (!response.ok) {
+          throw new Error('Failed to fetch devnets');
+        }
+        const data: DevnetConfig[] = await response.json();
+        setDevnets(data);
+        if (data.length > 0) {
+          setDeployForm(prev => ({ ...prev, devnetId: data[0].id }));
+          setVerifyingForm(prev => ({ ...prev, devnetId: data[0].id }));
+        }
+      } catch (error: any) {
+        toast({
+          title: "Error",
+          description: `Failed to load devnets: ${error.message}`,
+          variant: "destructive",
+        });
+      } finally {
+        setLoadingDevnets(false);
+      }
+    };
+
+    const fetchDeployments = async () => {
+      try {
+        const response = await fetch('/api/deployments');
+        if (!response.ok) {
+          throw new Error('Failed to fetch deployments');
+        }
+        const data: Deployment[] = await response.json();
+        setDeployments(data);
+      } catch (error: any) {
+        toast({
+          title: "Error",
+          description: `Failed to load deployments: ${error.message}`,
+          variant: "destructive",
+        });
+      } finally {
+        setLoadingDeployments(false);
+      }
+    };
+
     fetchFaucets();
+    fetchDevnets();
+    fetchDeployments();
   }, [toast]);
 
   const toggleRule = (id: string) => {
@@ -179,6 +249,132 @@ const Automation = () => {
       });
     } finally {
       setRequestingFunds(null);
+    }
+  };
+
+  const handleDeployContract = async () => {
+    if (!deployForm.devnetId || !deployForm.contractName || !deployForm.bytecode || !deployForm.abi) {
+      toast({
+        title: "Missing Information",
+        description: "Please fill in all required fields for contract deployment.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setDeploying(true);
+    try {
+      const response = await fetch('/api/deploy', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          devnetId: deployForm.devnetId,
+          contractName: deployForm.contractName,
+          bytecode: deployForm.bytecode,
+          abi: JSON.parse(deployForm.abi),
+          constructorArgs: deployForm.constructorArgs ? JSON.parse(deployForm.constructorArgs) : []
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        toast({
+          title: "Deployment Successful",
+          description: `Contract ${deployForm.contractName} deployed at ${data.contractAddress}`,
+        });
+        // Refresh deployments list
+        const updatedDeploymentsResponse = await fetch('/api/deployments');
+        const updatedDeployments: Deployment[] = await updatedDeploymentsResponse.json();
+        setDeployments(updatedDeployments);
+        setDeployForm({
+          devnetId: devnets.length > 0 ? devnets[0].id : '',
+          contractName: '',
+          bytecode: '',
+          abi: '',
+          constructorArgs: ''
+        });
+      } else {
+        toast({
+          title: "Deployment Failed",
+          description: data.message || "An unknown error occurred during deployment.",
+          variant: "destructive",
+        });
+      }
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: `Failed to deploy contract: ${error.message}`,
+        variant: "destructive",
+      });
+    } finally {
+      setDeploying(false);
+    }
+  };
+
+  const handleVerifyContract = async () => {
+    if (!verifyingForm.devnetId || !verifyingForm.contractAddress || !verifyingForm.contractName || !verifyingForm.sourceCode) {
+      toast({
+        title: "Missing Information",
+        description: "Please fill in all required fields for contract verification.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setVerifying(true);
+    try {
+      const response = await fetch('/api/verify', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          devnetId: verifyingForm.devnetId,
+          contractAddress: verifyingForm.contractAddress,
+          contractName: verifyingForm.contractName,
+          sourceCode: verifyingForm.sourceCode
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        toast({
+          title: "Verification Successful",
+          description: data.message,
+        });
+        // Update status of the verified contract in deployments
+        setDeployments(prevDeployments => 
+          prevDeployments.map(dep => 
+            dep.contractAddress === verifyingForm.contractAddress && dep.devnetId === verifyingForm.devnetId
+              ? { ...dep, status: 'verified' }
+              : dep
+          )
+        );
+        setVerifyingForm({
+          devnetId: devnets.length > 0 ? devnets[0].id : '',
+          contractAddress: '',
+          contractName: '',
+          sourceCode: ''
+        });
+      } else {
+        toast({
+          title: "Verification Failed",
+          description: data.message || "An unknown error occurred during verification.",
+          variant: "destructive",
+        });
+      }
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: `Failed to verify contract: ${error.message}`,
+        variant: "destructive",
+      });
+    } finally {
+      setVerifying(false);
     }
   };
 
@@ -307,29 +503,168 @@ const Automation = () => {
 
             <Card>
               <CardHeader>
+                <CardTitle className="flex items-center">
+                  <Network className="h-5 w-5 mr-2" />
+                  Devnet Deployer
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="space-y-4">
+                  <h3 className="text-lg font-semibold">Deploy Contract</h3>
+                  <div className="grid gap-2">
+                    <Label htmlFor="devnet-select">Devnet</Label>
+                    <Select
+                      value={deployForm.devnetId}
+                      onValueChange={(value) => setDeployForm(prev => ({ ...prev, devnetId: value }))}
+                      disabled={loadingDevnets}
+                    >
+                      <SelectTrigger id="devnet-select">
+                        <SelectValue placeholder="Select a devnet" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {devnets.map(devnet => (
+                          <SelectItem key={devnet.id} value={devnet.id}>
+                            {devnet.name} ({devnet.rpcUrl})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="contract-name">Contract Name</Label>
+                    <Input
+                      id="contract-name"
+                      value={deployForm.contractName}
+                      onChange={(e) => setDeployForm(prev => ({ ...prev, contractName: e.target.value }))}
+                      placeholder="MyToken"
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="bytecode">Bytecode</Label>
+                    <Textarea
+                      id="bytecode"
+                      value={deployForm.bytecode}
+                      onChange={(e) => setDeployForm(prev => ({ ...prev, bytecode: e.target.value }))}
+                      placeholder="0x6080604052..."
+                      rows={4}
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="abi">ABI (JSON)</Label>
+                    <Textarea
+                      id="abi"
+                      value={deployForm.abi}
+                      onChange={(e) => setDeployForm(prev => ({ ...prev, abi: e.target.value }))}
+                      placeholder='[{"inputs":[],"stateMutability":"nonpayable","type":"constructor"}]'
+                      rows={4}
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="constructor-args">Constructor Arguments (JSON Array)</Label>
+                    <Input
+                      id="constructor-args"
+                      value={deployForm.constructorArgs}
+                      onChange={(e) => setDeployForm(prev => ({ ...prev, constructorArgs: e.target.value }))}
+                      placeholder='["arg1", 123]'
+                    />
+                  </div>
+                  <Button onClick={handleDeployContract} disabled={deploying}>
+                    {deploying ? 'Deploying...' : <><Upload className="h-4 w-4 mr-2" /> Deploy Contract</>}
+                  </Button>
+                </div>
+
+                <div className="space-y-4">
+                  <h3 className="text-lg font-semibold">Verify Contract</h3>
+                  <div className="grid gap-2">
+                    <Label htmlFor="verify-devnet-select">Devnet</Label>
+                    <Select
+                      value={verifyingForm.devnetId}
+                      onValueChange={(value) => setVerifyingForm(prev => ({ ...prev, devnetId: value }))}
+                      disabled={loadingDevnets}
+                    >
+                      <SelectTrigger id="verify-devnet-select">
+                        <SelectValue placeholder="Select a devnet" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {devnets.map(devnet => (
+                          <SelectItem key={devnet.id} value={devnet.id}>
+                            {devnet.name} ({devnet.rpcUrl})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="verify-contract-address">Contract Address</Label>
+                    <Input
+                      id="verify-contract-address"
+                      value={verifyingForm.contractAddress}
+                      onChange={(e) => setVerifyingForm(prev => ({ ...prev, contractAddress: e.target.value }))}
+                      placeholder="0x..."
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="verify-contract-name">Contract Name</Label>
+                    <Input
+                      id="verify-contract-name"
+                      value={verifyingForm.contractName}
+                      onChange={(e) => setVerifyingForm(prev => ({ ...prev, contractName: e.target.value }))}
+                      placeholder="MyToken"
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="source-code">Source Code</Label>
+                    <Textarea
+                      id="source-code"
+                      value={verifyingForm.sourceCode}
+                      onChange={(e) => setVerifyingForm(prev => ({ ...prev, sourceCode: e.target.value }))}
+                      placeholder="// SPDX-License-Identifier: MIT..."
+                      rows={6}
+                    />
+                  </div>
+                  <Button onClick={handleVerifyContract} disabled={verifying}>
+                    {verifying ? 'Verifying...' : <><CheckCircle className="h-4 w-4 mr-2" /> Verify Contract</>}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
                 <CardTitle>Recent Deployments</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
-                  {deployments.map((deployment) => (
-                    <div key={deployment.id} className="flex items-center justify-between p-3 border rounded-lg">
-                      <div>
-                        <div className="font-medium">{deployment.contract}</div>
-                        <div className="text-sm text-gray-500">
-                          {deployment.chain} • {new Date(deployment.timestamp).toLocaleDateString()}
+                {loadingDeployments ? (
+                  <div className="text-center text-gray-500">Loading deployments...</div>
+                ) : (
+                  <div className="space-y-4">
+                    {deployments.length === 0 ? (
+                      <p className="text-center text-gray-500">No deployments found.</p>
+                    ) : (
+                      deployments.map((deployment) => (
+                        <div key={deployment.id} className="flex items-center justify-between p-3 border rounded-lg">
+                          <div>
+                            <div className="font-medium">{deployment.contractName}</div>
+                            <div className="text-sm text-gray-500">
+                              {devnets.find(d => d.id === deployment.devnetId)?.name || deployment.devnetId} • {new Date(deployment.timestamp).toLocaleDateString()}
+                            </div>
+                            <div className="text-xs font-mono text-gray-600 mt-1">
+                              {deployment.contractAddress.substring(0, 6)}...{deployment.contractAddress.substring(deployment.contractAddress.length - 4)}
+                            </div>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <Badge variant={deployment.status === 'verified' ? 'default' : deployment.status === 'failed' ? 'destructive' : 'secondary'}>
+                              {deployment.status || 'unverified'}
+                            </Badge>
+                            <Button size="sm" variant="outline">
+                              View
+                            </Button>
+                          </div>
                         </div>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <Badge variant={deployment.status === 'verified' ? 'default' : 'secondary'}>
-                          {deployment.status}
-                        </Badge>
-                        <Button size="sm" variant="outline">
-                          View
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                      ))
+                    )}
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>
