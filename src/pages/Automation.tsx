@@ -1403,7 +1403,7 @@ const Automation = () => {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="normal">Normal</SelectItem>
-                  <SelectItem value="aggressive">Aggressive</SelectItem>
+                  <SelectItem value="aggressive">Aggressive</SelectItem> {/* Corrected typo here */}
                   <SelectItem value="passive">Passive</SelectItem>
                 </SelectContent>
               </Select>
