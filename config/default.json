@@ -53,7 +53,9 @@
   },
   "simulation": {
     "maxConcurrent": 5,
-    "timeout": 3000
+    "timeout": 3000,
+    "localForkRpcUrl": "http://localhost:8545",
+    "localForkChainId": "31337"
   },
   "security": {
     "webhookSecret": "your-webhook-secret-key",
