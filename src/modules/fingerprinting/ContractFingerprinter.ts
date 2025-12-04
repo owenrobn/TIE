@@ -2,7 +2,7 @@
 import { EVMAdapter } from '../adapters/EVMAdapter'; // Import EVMAdapter
 
 export class ContractFingerprinter {
-  private evmAdapter: EVMAdapter | null; // Allow null if not provided
+  private evmAdapter: EVMAdapter | null;
 
   constructor(evmAdapter: EVMAdapter | null = null) {
     this.evmAdapter = evmAdapter;
@@ -15,12 +15,18 @@ export class ContractFingerprinter {
     // If ABI is not provided, try to fetch it using the EVMAdapter
     if (!contractAbi && this.evmAdapter) {
       console.log(`ABI not provided for ${address}, attempting to fetch using EVMAdapter.`);
-      contractAbi = await this.evmAdapter.getContractABI(address);
-      if (contractAbi.length === 0) {
-        console.warn(`Could not fetch ABI for ${address}. Fingerprinting with limited information.`);
+      try {
+        contractAbi = await this.evmAdapter.getContractABI(address);
+        if (contractAbi.length === 0) {
+          console.warn(`Could not fetch ABI for ${address}. Fingerprinting with limited information.`);
+        }
+      } catch (error) {
+        console.error(`Error fetching ABI for ${address} with EVMAdapter:`, error);
+        contractAbi = []; // Ensure contractAbi is an array even on error
       }
     } else if (!contractAbi) {
       console.warn(`ABI not provided for ${address} and no EVMAdapter available. Fingerprinting with limited information.`);
+      contractAbi = []; // Ensure contractAbi is an array
     }
 
     // In a real implementation, this would analyze:
@@ -40,7 +46,7 @@ export class ContractFingerprinter {
     };
   }
 
-  private classifyContract(abi: any): string {
+  private classifyContract(abi: any[]): string { // Explicitly type abi as any[]
     // Simple contract classification based on ABI
     if (!abi || !Array.isArray(abi)) return 'Unknown';
     

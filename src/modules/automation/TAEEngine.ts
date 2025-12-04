@@ -173,6 +173,10 @@ export class TAEEngine {
     return this.walletManager.addWallet(address, privateKey, persona);
   }
 
+  async updateWallet(id: string, updates: any): Promise<any | null> { // Added updateWallet method
+    return this.walletManager.updateWallet(id, updates);
+  }
+
   async removeWallet(id: string): Promise<boolean> {
     return this.walletManager.removeWallet(id);
   }

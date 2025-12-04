@@ -82,6 +82,31 @@ export class WalletManager {
     return newWallet;
   }
 
+  async updateWallet(id: string, updates: Partial<Omit<Wallet, 'id' | 'created_at'>>): Promise<Wallet | null> {
+    const dbUpdates: any = {};
+    if (updates.address !== undefined) dbUpdates.address = updates.address;
+    if (updates.privateKey !== undefined) dbUpdates.private_key = updates.privateKey;
+    if (updates.persona !== undefined) dbUpdates.persona = updates.persona;
+    if (updates.lastUsed !== undefined) dbUpdates.last_used = updates.lastUsed;
+
+    const updatedRecord = await this.databaseService.updateWallet(id, dbUpdates);
+
+    if (updatedRecord) {
+      const index = this.wallets.findIndex(w => w.id === id);
+      if (index !== -1) {
+        this.wallets[index] = {
+          id: updatedRecord.id,
+          address: updatedRecord.address,
+          privateKey: updatedRecord.private_key,
+          persona: updatedRecord.persona,
+          lastUsed: updatedRecord.last_used ? new Date(updatedRecord.last_used) : null,
+        };
+        return this.wallets[index];
+      }
+    }
+    return null;
+  }
+
   async removeWallet(id: string): Promise<boolean> {
     const success = await this.databaseService.deleteWallet(id);
     if (success) {

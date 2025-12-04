@@ -18,6 +18,7 @@ import { ContractFingerprinter } from '../fingerprinting/ContractFingerprinter';
 import { EVMAdapter } from '../adapters/EVMAdapter';
 import { DatabaseService } from '../storage/DatabaseService'; // Import DatabaseService
 import config from 'config'; // Import config for webhook secret
+import { ethers } from 'ethers'; // Import ethers for TransactionRequest type
 
 export class TIEEngine {
   private detectors: Detector[];
@@ -44,8 +45,8 @@ export class TIEEngine {
       securityConfig.taeWebhookUrl, // Use configured TAE webhook URL
       securityConfig.webhookSecret || 'your-webhook-secret'
     );
-    // Initialize ContractFingerprinter without an adapter initially, will be set in initializeChainAdapters
-    this.contractFingerprinter = new ContractFingerprinter(); 
+    // Initialize ContractFingerprinter with null adapter initially
+    this.contractFingerprinter = new ContractFingerprinter(null); 
     this.chainAdapters = new Map();
     this.running = false;
 
@@ -54,55 +55,40 @@ export class TIEEngine {
 
   private initializeChainAdapters(): void {
     const chainsConfig = config.get('chains') as any;
+    let firstEVMAdapter: EVMAdapter | null = null;
+
+    // Helper to create and store adapter, and set firstEVMAdapter
+    const createAndStoreEVMAdapter = (chainKey: string, chainConfig: any) => {
+      const adapter = new EVMAdapter(
+        chainConfig.rpc,
+        chainConfig.chainId,
+        this.etherscanApiKey,
+        chainConfig.wsRpc
+      );
+      this.chainAdapters.set(chainKey, adapter);
+      if (!firstEVMAdapter) {
+        firstEVMAdapter = adapter;
+      }
+    };
 
     if (chainsConfig.ethereum) {
-      const adapter = new EVMAdapter(
-        chainsConfig.ethereum.rpc,
-        chainsConfig.ethereum.chainId,
-        this.etherscanApiKey,
-        chainsConfig.ethereum.wsRpc // Pass wsRpcUrl
-      );
-      this.chainAdapters.set('ethereum-sepolia', adapter);
-      // Set the EVMAdapter for the ContractFingerprinter if it's the first one
-      if (!this.contractFingerprinter['evmAdapter']) { // Access private property for now
-        this.contractFingerprinter = new ContractFingerprinter(adapter);
-      }
+      createAndStoreEVMAdapter('ethereum-sepolia', chainsConfig.ethereum);
     }
     if (chainsConfig.arbitrum) {
-      const adapter = new EVMAdapter(
-        chainsConfig.arbitrum.rpc,
-        chainsConfig.arbitrum.chainId,
-        this.etherscanApiKey,
-        chainsConfig.arbitrum.wsRpc // Pass wsRpcUrl
-      );
-      this.chainAdapters.set('arbitrum-sepolia', adapter);
-      if (!this.contractFingerprinter['evmAdapter']) {
-        this.contractFingerprinter = new ContractFingerprinter(adapter);
-      }
+      createAndStoreEVMAdapter('arbitrum-sepolia', chainsConfig.arbitrum);
     }
     if (chainsConfig.optimism) {
-      const adapter = new EVMAdapter(
-        chainsConfig.optimism.rpc,
-        chainsConfig.optimism.chainId,
-        this.etherscanApiKey,
-        chainsConfig.optimism.wsRpc // Pass wsRpcUrl
-      );
-      this.chainAdapters.set('optimism-sepolia', adapter);
-      if (!this.contractFingerprinter['evmAdapter']) {
-        this.contractFingerprinter = new ContractFingerprinter(adapter);
-      }
+      createAndStoreEVMAdapter('optimism-sepolia', chainsConfig.optimism);
     }
     if (chainsConfig.base) {
-      const adapter = new EVMAdapter(
-        chainsConfig.base.rpc,
-        chainsConfig.base.chainId,
-        this.etherscanApiKey,
-        chainsConfig.base.wsRpc // Pass wsRpcUrl
-      );
-      this.chainAdapters.set('base-sepolia', adapter);
-      if (!this.contractFingerprinter['evmAdapter']) {
-        this.contractFingerprinter = new ContractFingerprinter(adapter);
-      }
+      createAndStoreEVMAdapter('base-sepolia', chainsConfig.base);
+    }
+
+    // Assign the first EVMAdapter found to the ContractFingerprinter
+    if (firstEVMAdapter) {
+      // This is a direct assignment, assuming ContractFingerprinter has a public setter or its constructor handles it.
+      // Given the current ContractFingerprinter constructor, we can re-instantiate it.
+      this.contractFingerprinter = new ContractFingerprinter(firstEVMAdapter);
     }
   }
 
@@ -207,24 +193,33 @@ export class TIEEngine {
     console.log(`Processing detection from ${detectorName}:`, detection);
 
     let fingerprint = null;
-    if (detection.address || detection.contract) {
-      const address = detection.address || detection.contract;
-      // Pass the chain ID to the fingerprinting engine if needed, or ensure the adapter is chain-specific
+    const contractAddress = detection.address || detection.contract;
+    if (contractAddress) {
+      // Fingerprint the contract. The ContractFingerprinter will use its internal EVMAdapter to fetch ABI if needed.
       fingerprint = await this.contractFingerprinter.fingerprintContract(
-        address,
-        '', 
-        null // Pass null for ABI, so the fingerprinter attempts to fetch it
+        contractAddress,
+        '', // Bytecode is not always available from detection, let fingerprinter fetch if needed
+        null // ABI is not always available, let fingerprinter fetch if needed
       );
     }
 
     let simulation = null;
-    if (detection.transaction) {
-      // Construct SimulationRequest from detection.transaction
-      const simulationRequest = {
-        chain: detection.chain,
-        transactions: [detection.transaction] // Wrap single transaction in an array
+    // Construct a mock transaction for simulation if enough info is available
+    if (contractAddress && detection.type) {
+      const mockTx: ethers.TransactionRequest = {
+        to: contractAddress,
+        // For a generic simulation, we might not have specific 'data' or 'value'
+        // These would ideally come from the detector's detailed output.
+        // For now, we'll use placeholders.
+        data: '0x', // Placeholder for transaction data
+        value: ethers.parseEther('0.001'), // Small value for simulation, if applicable
+        from: '0xMockSenderAddress' // A mock sender address for simulation context
       };
-      simulation = await this.simulationEngine.simulate(simulationRequest);
+      // If the detection has more specific transaction details, use them
+      if (detection.transaction) {
+        Object.assign(mockTx, detection.transaction);
+      }
+      simulation = await this.simulationEngine.simulate(mockTx);
     }
 
     const signalData = {
@@ -233,8 +228,9 @@ export class TIEEngine {
       context: {
         type: detection.type,
         description: detection.description,
-        contract_address: detection.address || detection.contract,
-        parameters: detection // Store full detection as parameters
+        contract_address: contractAddress,
+        parameters: detection, // Store full detection as parameters
+        fingerprint: fingerprint // Include fingerprint in context
       },
       simulation: simulation,
       score: 0, // Will be updated after scoring
