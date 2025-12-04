@@ -9,7 +9,8 @@ import {
   Search,
   Settings,
   Zap,
-  Shield
+  Shield,
+  Bot
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -31,6 +32,11 @@ const Sidebar = () => {
       name: 'Detectors',
       href: '/detectors',
       icon: Search,
+    },
+    {
+      name: 'Automation',
+      href: '/automation',
+      icon: Bot,
     },
     {
       name: 'MEV Intelligence',

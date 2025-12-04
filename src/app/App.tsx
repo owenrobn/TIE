@@ -9,6 +9,9 @@ import Layout from './layout';
 import Dashboard from '@/pages/Dashboard';
 import Signals from '@/pages/Signals';
 import Detectors from '@/pages/Detectors';
+import Automation from '@/pages/Automation';
+import MEV from '@/pages/MEV';
+import Security from '@/pages/Security';
 import Settings from '@/pages/Settings';
 import NotFound from '@/pages/NotFound';
 
@@ -25,6 +28,9 @@ const App = () => {
               <Route path="/" element={<Dashboard />} />
               <Route path="/signals" element={<Signals />} />
               <Route path="/detectors" element={<Detectors />} />
+              <Route path="/automation" element={<Automation />} />
+              <Route path="/mev" element={<MEV />} />
+              <Route path="/security" element={<Security />} />
               <Route path="/settings" element={<Settings />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
