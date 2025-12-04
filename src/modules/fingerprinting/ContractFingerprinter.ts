@@ -54,21 +54,33 @@ export class ContractFingerprinter {
       .filter(item => item.type === 'function')
       .map(item => item.name);
     
+    const eventNames = abi
+      .filter(item => item.type === 'event')
+      .map(item => item.name);
+
     // Check for common patterns
-    if (functionNames.includes('swap') && functionNames.includes('addLiquidity')) {
+    if (functionNames.includes('swap') && functionNames.includes('addLiquidity') && functionNames.includes('removeLiquidity')) {
       return 'AMM';
     }
     
-    if (functionNames.includes('stake') && functionNames.includes('unstake')) {
+    if (functionNames.includes('stake') && functionNames.includes('unstake') && functionNames.includes('claimRewards')) {
       return 'Staking';
     }
     
-    if (functionNames.includes('propose') && functionNames.includes('vote')) {
+    if (functionNames.includes('propose') && functionNames.includes('vote') && functionNames.includes('execute')) {
       return 'Governance';
     }
     
-    if (functionNames.includes('bridge') && functionNames.includes('relay')) {
+    if (functionNames.includes('bridge') && functionNames.includes('deposit') && functionNames.includes('withdraw')) {
       return 'Bridge';
+    }
+
+    if (eventNames.includes('Transfer') && eventNames.includes('Approval')) {
+      return 'ERC20';
+    }
+
+    if (eventNames.includes('Transfer') && eventNames.includes('ApprovalForAll')) {
+      return 'ERC721/ERC1155';
     }
     
     return 'Generic';

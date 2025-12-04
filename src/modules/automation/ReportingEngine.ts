@@ -23,13 +23,12 @@ export class ReportingEngine {
 
     console.log(`Reporting execution for signal ${signalId} to TIE webhook.`);
     try {
-      // In a real implementation, this would send an HTTP POST request
-      // await fetch(this.tieWebhookUrl, {
-      //   method: 'POST',
-      //   headers: { 'Content-Type': 'application/json' },
-      //   body: JSON.stringify(reportPayload),
-      // });
-      console.log('Report sent to TIE webhook (simulated).');
+      await fetch(this.tieWebhookUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(reportPayload),
+      });
+      console.log('Report sent to TIE webhook.');
     } catch (error) {
       console.error('Failed to send report to TIE webhook:', error);
     }
@@ -37,12 +36,12 @@ export class ReportingEngine {
     if (this.n8nWebhookUrl) {
       console.log(`Reporting execution for signal ${signalId} to n8n webhook.`);
       try {
-        // await fetch(this.n8nWebhookUrl, {
-        //   method: 'POST',
-        //   headers: { 'Content-Type': 'application/json' },
-        //   body: JSON.stringify(reportPayload),
-        // });
-        console.log('Report sent to n8n webhook (simulated).');
+        await fetch(this.n8nWebhookUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(reportPayload),
+        });
+        console.log('Report sent to n8n webhook.');
       } catch (error) {
         console.error('Failed to send report to n8n webhook:', error);
       }
@@ -52,16 +51,16 @@ export class ReportingEngine {
       const message = `TAE Execution Report:\nSignal ID: ${signalId}\nWallet: ${walletAddress}\nStatus: ${result.success ? 'Success' : 'Failed'}\nError: ${result.error || 'N/A'}`;
       console.log(`Sending Telegram notification for signal ${signalId}.`);
       try {
-        // const telegramApiUrl = `https://api.telegram.org/bot${this.telegramBotToken}/sendMessage`;
-        // await fetch(telegramApiUrl, {
-        //   method: 'POST',
-        //   headers: { 'Content-Type': 'application/json' },
-        //   body: JSON.stringify({
-        //     chat_id: this.telegramChatId,
-        //     text: message,
-        //   }),
-        // });
-        console.log('Telegram notification sent (simulated).');
+        const telegramApiUrl = `https://api.telegram.org/bot${this.telegramBotToken}/sendMessage`;
+        await fetch(telegramApiUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            chat_id: this.telegramChatId,
+            text: message,
+          }),
+        });
+        console.log('Telegram notification sent.');
       } catch (error) {
         console.error('Failed to send Telegram notification:', error);
       }

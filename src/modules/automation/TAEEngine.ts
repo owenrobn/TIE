@@ -9,6 +9,7 @@ import { ExecutionQueue } from './ExecutionQueue';
 import { ReportingEngine } from './ReportingEngine';
 import { DatabaseService } from '../../storage/DatabaseService'; // Import DatabaseService
 import { AutomationEngine } from './AutomationEngine'; // Import AutomationEngine
+import { EVMAdapter } from '../adapters/EVMAdapter'; // Import EVMAdapter
 import config from 'config'; // Import config
 
 export class TAEEngine {
@@ -23,18 +24,36 @@ export class TAEEngine {
   private running: boolean;
   private databaseService: DatabaseService; // Inject DatabaseService
   private automationEngine: AutomationEngine; // Inject AutomationEngine
+  private chainAdapters: Map<string, EVMAdapter>; // Store chain adapters
 
   constructor(databaseService: DatabaseService, automationEngine: AutomationEngine) {
     this.databaseService = databaseService; // Assign DatabaseService
     this.automationEngine = automationEngine; // Assign AutomationEngine
     
     const securityConfig = config.get('security') as any;
+    const chainsConfig = config.get('chains') as any;
+    const etherscanApiKey = securityConfig.etherscanApiKey || process.env.ETHERSCAN_API_KEY || 'YOUR_ETHERSCAN_API_KEY';
+
+    // Initialize chain adapters for TAEEngine's internal use
+    this.chainAdapters = new Map();
+    if (chainsConfig.ethereum) {
+      this.chainAdapters.set('ethereum-sepolia', new EVMAdapter(chainsConfig.ethereum.rpc, chainsConfig.ethereum.chainId, etherscanApiKey, chainsConfig.ethereum.wsRpc));
+    }
+    if (chainsConfig.arbitrum) {
+      this.chainAdapters.set('arbitrum-nitro', new EVMAdapter(chainsConfig.arbitrum.rpc, chainsConfig.arbitrum.chainId, etherscanApiKey, chainsConfig.arbitrum.wsRpc));
+    }
+    if (chainsConfig.optimism) {
+      this.chainAdapters.set('optimism-goerli', new EVMAdapter(chainsConfig.optimism.rpc, chainsConfig.optimism.chainId, etherscanApiKey, chainsConfig.optimism.wsRpc));
+    }
+    if (chainsConfig.base) {
+      this.chainAdapters.set('base-goerli', new EVMAdapter(chainsConfig.base.rpc, chainsConfig.base.chainId, etherscanApiKey, chainsConfig.base.wsRpc));
+    }
 
     this.signalReceiver = new SignalReceiver(securityConfig.webhookSecret || 'your-tie-secret-key');
     this.decisionEngine = new DecisionEngine();
     this.walletManager = new WalletManager(this.databaseService); // Pass DatabaseService
     this.antiSybilEngine = new AntiSybilEngine();
-    this.interactionEngine = new InteractionEngine(); // Will need EVMAdapter later
+    this.interactionEngine = new InteractionEngine(this.chainAdapters, this.antiSybilEngine); // Pass chainAdapters and AntiSybilEngine
     this.rewardTracker = new RewardTracker();
     this.executionQueue = new ExecutionQueue();
     this.reportingEngine = new ReportingEngine(securityConfig.taeReportingWebhookUrl || 'https://n8n.example.com/webhook');
@@ -127,6 +146,7 @@ export class TAEEngine {
 
       console.log(`Executing action for signal ${signal.signal_id} with wallet ${wallet.address}`);
       const executionResult = await this.interactionEngine.executeInteraction(
+        signal.chain, // Pass the chain to InteractionEngine
         signal.context.type,
         signal.context.contract_address,
         signal.context.parameters,

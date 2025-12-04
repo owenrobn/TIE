@@ -178,4 +178,17 @@ export class EVMAdapter extends ChainAdapter {
       return [];
     }
   }
+
+  async sendTransaction(signedTx: string): Promise<{ hash: string; success: boolean; error?: string }> {
+    console.log(`Sending signed transaction to ${this.chainId}`);
+    try {
+      const txResponse = await this.provider.broadcastTransaction(signedTx);
+      await txResponse.wait(); // Wait for transaction to be mined
+      console.log(`Transaction sent. Hash: ${txResponse.hash}`);
+      return { hash: txResponse.hash, success: true };
+    } catch (error: any) {
+      console.error(`Failed to send transaction on ${this.chainId}:`, error);
+      return { hash: '', success: false, error: error.message };
+    }
+  }
 }

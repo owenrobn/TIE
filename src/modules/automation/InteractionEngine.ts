@@ -1,5 +1,6 @@
 // InteractionEngine.ts
-import { EVMAdapter } from '../adapters/EVMAdapter'; // Assuming EVMAdapter is available
+import { EVMAdapter } from '../adapters/EVMAdapter';
+import { ethers } from 'ethers'; // Import ethers for Wallet and TransactionRequest
 
 interface InteractionResult {
   success: boolean;
@@ -11,71 +12,78 @@ interface InteractionResult {
 }
 
 export class InteractionEngine {
-  private evmAdapter: EVMAdapter; // For now, only EVM is supported as per spec
+  private chainAdapters: Map<string, EVMAdapter>; // Map of chainId to EVMAdapter
+  private antiSybilEngine: any; // Assuming AntiSybilEngine is available for gas strategy
 
-  constructor() {
-    // Initialize with a generic EVM adapter. In a real scenario, this would be dynamic
-    // or passed in based on the target chain.
-    this.evmAdapter = new EVMAdapter('http://localhost:8545', '31337'); // Mock local devnet
+  constructor(chainAdapters: Map<string, EVMAdapter>, antiSybilEngine: any) {
+    this.chainAdapters = chainAdapters;
+    this.antiSybilEngine = antiSybilEngine; // Inject AntiSybilEngine
   }
 
   async executeInteraction(
+    chain: string, // Added chain parameter to select adapter
     type: string,
     contractAddress: string,
     parameters: any,
     privateKey: string, // Wallet's private key for signing
     gasStrategy: 'random' | 'fast' | 'average'
   ): Promise<InteractionResult> {
-    console.log(`Simulating ${type} interaction on ${contractAddress} with params:`, parameters);
+    console.log(`Executing ${type} interaction on ${chain} for contract ${contractAddress} with params:`, parameters);
 
-    // Simulate dynamic calldata construction and preflight checks
-    const mockTxPayload = {
-      from: '0xMockSenderAddress', // Derived from privateKey
-      to: contractAddress,
-      data: '0xMockCalldata', // Dynamically constructed based on type and parameters
-      value: '0',
-      gasLimit: 210000, // Placeholder
-      gasPrice: '20000000000', // Placeholder, adjusted by gasStrategy
-    };
-
-    // Apply gas strategy
-    if (gasStrategy === 'random') {
-      // This would involve calling AntiSybilEngine.getRandomGasPrice()
-      mockTxPayload.gasPrice = (Math.floor(Math.random() * 30) + 10) * 1e9 + ''; // 10-40 Gwei
-    } else if (gasStrategy === 'fast') {
-      mockTxPayload.gasPrice = '50000000000'; // 50 Gwei
+    const adapter = this.chainAdapters.get(chain);
+    if (!adapter) {
+      return { success: false, error: `No EVMAdapter found for chain: ${chain}` };
     }
 
     try {
-      // Simulate eth_call for preflight check
-      // const preflightResult = await this.evmAdapter.simulateTransaction(mockTxPayload);
-      // if (!preflightResult.success) {
-      //   throw new Error('Preflight simulation failed: ' + preflightResult.error);
-      // }
+      const wallet = new ethers.Wallet(privateKey, adapter['provider']); // Use the adapter's provider
 
-      // Simulate eth_estimateGas
-      // const estimatedGas = await this.evmAdapter.fetchGasData();
-      // mockTxPayload.gasLimit = estimatedGas.gasLimit * 1.2; // Adjust upward for safety
+      // Fetch current gas data
+      const gasData = await adapter.fetchGasData();
+      let gasPrice = ethers.parseUnits('20', 'gwei'); // Default to 20 Gwei
 
-      // Simulate sending the transaction
-      await new Promise(resolve => setTimeout(resolve, 2000)); // Simulate network latency
-
-      const success = Math.random() > 0.1; // 90% success rate for simulation
-      if (!success) {
-        throw new Error('Simulated transaction failed on-chain.');
+      if (gasStrategy === 'random') {
+        gasPrice = ethers.parseUnits(this.antiSybilEngine.getRandomGasPrice(), 'wei'); // Use AntiSybilEngine for random gas
+      } else if (gasStrategy === 'fast' && gasData.maxFeePerGas) {
+        gasPrice = ethers.parseUnits(gasData.maxFeePerGas, 'wei'); // Use fast gas if available
+      } else if (gasStrategy === 'average' && gasData.gasPrice) {
+        gasPrice = ethers.parseUnits(gasData.gasPrice, 'wei'); // Use average gas if available
       }
 
-      const txHash = `0x${Math.random().toString(16).substr(2, 64)}`;
-      const gasUsed = Math.floor(Math.random() * 100000) + 50000;
-
-      console.log(`Interaction ${type} successful. TxHash: ${txHash}`);
-      return {
-        success: true,
-        txHash,
-        gasUsed,
-        logs: [{ event: 'MockEvent', data: 'MockData' }],
-        output: { status: 'completed' }
+      // Construct a basic transaction payload. This will need to be more sophisticated
+      // based on the actual interaction type and contract ABI.
+      // For now, we'll assume a simple value transfer or a generic contract call.
+      const tx: ethers.TransactionRequest = {
+        to: contractAddress,
+        value: parameters.value ? ethers.parseEther(parameters.value.toString()) : 0, // Example: if parameters include a 'value'
+        data: parameters.data || '0x', // Example: if parameters include 'data' for a contract call
+        gasLimit: parameters.gasLimit || 210000, // Default gas limit, can be estimated
+        gasPrice: gasPrice,
+        nonce: await wallet.getNonce(),
       };
+
+      // Simulate transaction (preflight check)
+      const preflightResult = await adapter.simulateTransaction(tx);
+      if (!preflightResult.success) {
+        throw new Error('Preflight simulation failed: ' + preflightResult.error);
+      }
+      console.log('Preflight simulation successful. Estimated gas:', preflightResult.gasUsed);
+
+      // Sign and send the transaction
+      const signedTx = await wallet.signTransaction(tx);
+      const sendResult = await adapter.sendTransaction(signedTx);
+
+      if (sendResult.success) {
+        console.log(`Interaction ${type} successful. TxHash: ${sendResult.hash}`);
+        return {
+          success: true,
+          txHash: sendResult.hash,
+          gasUsed: preflightResult.gasUsed, // Use estimated gas from preflight
+          output: { status: 'completed' }
+        };
+      } else {
+        throw new Error(sendResult.error || 'Transaction broadcast failed.');
+      }
     } catch (error: any) {
       console.error(`Interaction ${type} failed:`, error.message);
       return {

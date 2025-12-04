@@ -23,13 +23,23 @@ export class ScoringEngine {
   }
 
   calculateRewardDepth(signal: any): number {
-    // Placeholder for reward depth calculation
-    // In a real implementation, this would analyze:
-    // - Potential token rewards (from simulation or detection context)
-    // - Historical reward distribution patterns
-    // - Market value of reward tokens
-    // For now, we'll use a simple heuristic or a value from detection if available.
-    return signal.rewardPotential || 0.5; // Example: 0.0 to 1.0
+    // Reward depth calculation based on signal type and simulation results
+    let depth = 0.1; // Base depth
+
+    if (signal.simulation?.success && signal.simulation.estimatedReward > 0) {
+      depth += Math.min(0.5, signal.simulation.estimatedReward / 10000); // Scale reward to 0-0.5
+    }
+
+    if (signal.context?.fingerprint?.hasRewards) {
+      depth += 0.2;
+    }
+    if (signal.type === 'Staking Reward Spike') {
+      depth += 0.3;
+    } else if (signal.type === 'Liquidity Bootstrapping') {
+      depth += 0.2;
+    }
+
+    return Math.min(1.0, depth); // Ensure depth is between 0 and 1
   }
 
   calculateUrgency(signal: any): number {
@@ -54,38 +64,43 @@ export class ScoringEngine {
   }
 
   calculateSybilRisk(signal: any): number {
-    // Placeholder for sybil risk calculation
-    // In a real implementation, this would analyze:
-    // - Behavioral pattern analysis (e.g., from walletManager)
-    // - Address reputation scoring
-    // - Transaction velocity monitoring
-    // For now, a simple mock based on a random factor, potentially influenced by a mock 'wallet_age'
-    const mockWalletAge = signal.walletAgeDays || Math.floor(Math.random() * 30); // Mock wallet age
+    // Sybil risk calculation based on mock wallet age and random factors
     let risk = 0.1; // Base risk
 
-    if (mockWalletAge < 7) { // Newer wallets might have higher sybil risk
-      risk += 0.2;
-    }
-    if (Math.random() > 0.8) { // 20% chance of higher random risk
+    const walletAgeDays = signal.walletAgeDays || Math.floor(Math.random() * 30);
+    if (walletAgeDays < 7) { // Newer wallets might have higher sybil risk
       risk += 0.3;
+    } else if (walletAgeDays < 30) {
+      risk += 0.1;
+    }
+
+    if (signal.context?.fingerprint?.riskScore) {
+      risk += signal.context.fingerprint.riskScore * 0.2; // Factor in contract risk
+    }
+
+    if (Math.random() > 0.8) { // 20% chance of higher random risk
+      risk += 0.2;
     }
     return Math.min(1.0, risk); // Ensure risk is between 0 and 1
   }
 
   calculateCapitalRequirement(signal: any): number {
-    // Placeholder for capital requirement calculation
-    // In a real implementation, this would assess:
-    // - Minimum transaction amounts
-    // - Position sizing requirements
-    // - Collateral needs
-    // For now, a simple mock based on the signal type or a random value.
+    // Capital requirement calculation based on signal type and potential interaction
     let requirement = 0.1; // Base requirement
 
     if (signal.type === 'Liquidation Opportunity') {
-      requirement += 0.4; // Liquidations often require significant capital
+      requirement += 0.5; // Liquidations often require significant capital
     } else if (signal.type === 'Liquidity Bootstrapping') {
-      requirement += 0.2; // Providing liquidity also requires capital
+      requirement += 0.3; // Providing liquidity also requires capital
+    } else if (signal.type === 'Price Mismatch' || signal.type === 'Oracle Lag') {
+      requirement += 0.2; // Arbitrage can require capital
     }
+
+    // If simulation provides a required capital, use that
+    if (signal.simulation?.requiredCapital) {
+      requirement = Math.min(1.0, requirement + signal.simulation.requiredCapital / 10000); // Scale example
+    }
+
     return Math.min(1.0, requirement); // Ensure requirement is between 0 and 1
   }
 }
