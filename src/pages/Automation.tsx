@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -14,6 +14,16 @@ import {
   Zap
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { Input } from '@/components/ui/input'; // Import Input for address field
+
+interface Faucet {
+  id: string;
+  name: string;
+  url: string;
+  chainId: string;
+  token: string;
+  cooldown: number; // in milliseconds
+}
 
 const Automation = () => {
   const { toast } = useToast();
@@ -64,32 +74,10 @@ const Automation = () => {
     }
   ]);
 
-  const [faucets] = useState([
-    {
-      id: 'ethereum-sepolia',
-      name: 'Ethereum Sepolia Faucet',
-      chain: 'Ethereum Sepolia',
-      token: 'ETH',
-      cooldown: '24 hours',
-      status: 'available'
-    },
-    {
-      id: 'polygon-mumbai',
-      name: 'Polygon Mumbai Faucet',
-      chain: 'Polygon Mumbai',
-      token: 'MATIC',
-      cooldown: '1 hour',
-      status: 'available'
-    },
-    {
-      id: 'arbitrum-sepolia',
-      name: 'Arbitrum Sepolia Faucet',
-      chain: 'Arbitrum Sepolia',
-      token: 'ETH',
-      cooldown: '24 hours',
-      status: 'available'
-    }
-  ]);
+  const [faucets, setFaucets] = useState<Faucet[]>([]);
+  const [userAddress, setUserAddress] = useState<string>('');
+  const [loadingFaucets, setLoadingFaucets] = useState(true);
+  const [requestingFunds, setRequestingFunds] = useState<string | null>(null); // Stores faucet ID being requested
 
   const [deployments] = useState([
     {
@@ -110,6 +98,29 @@ const Automation = () => {
     }
   ]);
 
+  useEffect(() => {
+    const fetchFaucets = async () => {
+      try {
+        const response = await fetch('/api/faucets');
+        if (!response.ok) {
+          throw new Error('Failed to fetch faucets');
+        }
+        const data: Faucet[] = await response.json();
+        setFaucets(data);
+      } catch (error: any) {
+        toast({
+          title: "Error",
+          description: `Failed to load faucets: ${error.message}`,
+          variant: "destructive",
+        });
+      } finally {
+        setLoadingFaucets(false);
+      }
+    };
+
+    fetchFaucets();
+  }, [toast]);
+
   const toggleRule = (id: string) => {
     setAutomationRules(automationRules.map(rule => 
       rule.id === id 
@@ -126,17 +137,60 @@ const Automation = () => {
     }
   };
 
-  const requestFaucetFunds = (id: string) => {
-    const faucet = faucets.find(f => f.id === id);
-    if (faucet) {
+  const requestFaucetFunds = async (faucetId: string, chainId: string) => {
+    if (!userAddress) {
       toast({
-        title: "Faucet Request Sent",
-        description: `Requesting ${faucet.token} from ${faucet.name}. This may take a few moments.`
+        title: "Missing Address",
+        description: "Please enter your wallet address to request funds.",
+        variant: "destructive",
       });
+      return;
+    }
+
+    setRequestingFunds(faucetId);
+    try {
+      const response = await fetch('/api/faucets/request', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ chainId, address: userAddress }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        toast({
+          title: "Faucet Request Sent",
+          description: data.message,
+        });
+      } else {
+        toast({
+          title: "Faucet Request Failed",
+          description: data.message || "An unknown error occurred.",
+          variant: "destructive",
+        });
+      }
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: `Failed to request funds: ${error.message}`,
+        variant: "destructive",
+      });
+    } finally {
+      setRequestingFunds(null);
     }
   };
 
   const activeRules = automationRules.filter(r => r.enabled).length;
+
+  const formatCooldown = (ms: number) => {
+    const hours = ms / (1000 * 60 * 60);
+    if (hours >= 24 && hours % 24 === 0) {
+      return `${hours / 24} day${hours / 24 > 1 ? 's' : ''}`;
+    }
+    return `${hours} hour${hours > 1 ? 's' : ''}`;
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 p-6">
@@ -212,29 +266,42 @@ const Automation = () => {
                 <CardTitle>Testnet Faucets</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
-                  {faucets.map((faucet) => (
-                    <div key={faucet.id} className="flex items-center justify-between p-3 border rounded-lg">
-                      <div>
-                        <div className="font-medium">{faucet.name}</div>
-                        <div className="text-sm text-gray-500">
-                          {faucet.chain} • {faucet.token} • {faucet.cooldown}
+                <div className="mb-4">
+                  <Input
+                    placeholder="Your wallet address (e.g., 0x...)"
+                    value={userAddress}
+                    onChange={(e) => setUserAddress(e.target.value)}
+                    className="w-full"
+                  />
+                </div>
+                {loadingFaucets ? (
+                  <div className="text-center text-gray-500">Loading faucets...</div>
+                ) : (
+                  <div className="space-y-4">
+                    {faucets.map((faucet) => (
+                      <div key={faucet.id} className="flex items-center justify-between p-3 border rounded-lg">
+                        <div>
+                          <div className="font-medium">{faucet.name}</div>
+                          <div className="text-sm text-gray-500">
+                            Chain ID: {faucet.chainId} • {faucet.token} • Cooldown: {formatCooldown(faucet.cooldown)}
+                          </div>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <Badge variant={faucet.cooldown > 0 ? 'default' : 'secondary'}>
+                            {faucet.cooldown > 0 ? 'Available' : 'No Cooldown'}
+                          </Badge>
+                          <Button 
+                            size="sm" 
+                            onClick={() => requestFaucetFunds(faucet.id, faucet.chainId)}
+                            disabled={requestingFunds === faucet.id || !userAddress}
+                          >
+                            {requestingFunds === faucet.id ? 'Requesting...' : 'Request'}
+                          </Button>
                         </div>
                       </div>
-                      <div className="flex items-center space-x-2">
-                        <Badge variant={faucet.status === 'available' ? 'default' : 'secondary'}>
-                          {faucet.status}
-                        </Badge>
-                        <Button 
-                          size="sm" 
-                          onClick={() => requestFaucetFunds(faucet.id)}
-                        >
-                          Request
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                )}
               </CardContent>
             </Card>
 

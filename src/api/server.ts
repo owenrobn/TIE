@@ -1,6 +1,8 @@
-// server.ts
+"use client";
+
 import express, { Request, Response } from 'express';
 import { TIEEngine } from '../modules/engine/TIEEngine';
+import { TestnetFaucetManager } from '../modules/automation/TestnetFaucetManager'; // Import TestnetFaucetManager
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -8,8 +10,9 @@ const port = process.env.PORT || 3000;
 // Middleware
 app.use(express.json());
 
-// Initialize TIE Engine
+// Initialize TIE Engine and TestnetFaucetManager
 const tieEngine = new TIEEngine();
+const faucetManager = new TestnetFaucetManager(); // Instantiate TestnetFaucetManager
 
 // Routes
 app.get('/api/health', (req: Request, res: Response) => {
@@ -50,6 +53,32 @@ app.get('/api/signals', (req: Request, res: Response) => {
   ];
   
   res.json(signals);
+});
+
+// New routes for Testnet Faucet Manager
+app.get('/api/faucets', (req: Request, res: Response) => {
+  const faucets = faucetManager.getAvailableFaucets();
+  res.json(faucets);
+});
+
+app.post('/api/faucets/request', async (req: Request, res: Response) => {
+  const { chainId, address } = req.body;
+  if (!chainId || !address) {
+    return res.status(400).json({ success: false, message: 'Chain ID and address are required.' });
+  }
+
+  try {
+    const success = await faucetManager.requestFunds(chainId, address);
+    if (success) {
+      res.json({ success: true, message: 'Funds requested successfully.' });
+    } else {
+      const nextAvailableTime = faucetManager.getNextAvailableTime(chainId, address);
+      const timeLeft = Math.ceil((nextAvailableTime - Date.now()) / (60 * 60 * 1000));
+      res.status(400).json({ success: false, message: `Cooldown period not expired. Please wait ${timeLeft} hours.` });
+    }
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message || 'Failed to request funds.' });
+  }
 });
 
 // Start the engine
