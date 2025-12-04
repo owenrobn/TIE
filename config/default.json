@@ -1,0 +1,58 @@
+{
+  "app": {
+    "name": "Testnet Intelligence Engine",
+    "version": "1.0.0",
+    "port": 3000
+  },
+  "database": {
+    "host": "localhost",
+    "port": 5432,
+    "name": "tie_db",
+    "user": "tie_user",
+    "password": "tie_password"
+  },
+  "redis": {
+    "host": "localhost",
+    "port": 6379
+  },
+  "chains": {
+    "ethereum": {
+      "rpc": "https://eth-sepolia.g.alchemy.com/v2/your-api-key",
+      "chainId": "11155111"
+    },
+    "arbitrum": {
+      "rpc": "https://arb-sepolia.g.alchemy.com/v2/your-api-key",
+      "chainId": "421614"
+    },
+    "optimism": {
+      "rpc": "https://opt-sepolia.g.alchemy.com/v2/your-api-key",
+      "chainId": "11155420"
+    },
+    "base": {
+      "rpc": "https://base-sepolia.g.alchemy.com/v2/your-api-key",
+      "chainId": "84532"
+    }
+  },
+  "detectors": {
+    "newChain": {
+      "enabled": true,
+      "interval": 300000
+    },
+    "newContract": {
+      "enabled": true,
+      "interval": 60000
+    },
+    "stakingReward": {
+      "enabled": true,
+      "interval": 120000
+    }
+  },
+  "simulation": {
+    "maxConcurrent": 5,
+    "timeout": 3000
+  },
+  "security": {
+    "webhookSecret": "your-webhook-secret-key",
+    "enableHMAC": true
+  }
+}

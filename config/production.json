@@ -1,0 +1,30 @@
+{
+  "app": {
+    "port": 8080
+  },
+  "database": {
+    "host": "postgres",
+    "password": "${DB_PASSWORD}"
+  },
+  "redis": {
+    "host": "redis"
+  },
+  "chains": {
+    "ethereum": {
+      "rpc": "${ETHEREUM_RPC_URL}"
+    },
+    "arbitrum": {
+      "rpc": "${ARBITRUM_RPC_URL}"
+    },
+    "optimism": {
+      "rpc": "${OPTIMISM_RPC_URL}"
+    },
+    "base": {
+      "rpc": "${BASE_RPC_URL}"
+    }
+  },
+  "security": {
+    "webhookSecret": "${WEBHOOK_SECRET}",
+    "enableHMAC": true
+  }
+}
