@@ -63,5 +63,10 @@
     "taeWebhookUrl": "http://localhost:3000/api/tae/signal",
     "taeReportingWebhookUrl": "https://n8n.example.com/webhook",
     "etherscanApiKey": "YOUR_ETHERSCAN_API_KEY"
+  },
+  "automation": {
+    "faucetThreshold": 0.01,
+    "executionDelayMin": 1000,
+    "executionDelayMax": 20000
   }
 }

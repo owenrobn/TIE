@@ -1,28 +1,45 @@
 // AntiSybilEngine.ts
+import config from 'config'; // Import config
+
 interface AntiSybilConfig {
   delay: number; // in milliseconds
-  gasStrategy: 'random' | 'fast' | 'average';
+  gasStrategy: 'random' | 'fast' | 'average' | 'slow'; // Added 'slow'
   calldataVariation: boolean;
 }
 
 export class AntiSybilEngine {
   getAntiSybilConfig(persona: any): AntiSybilConfig {
-    // Implement anti-sybil rules based on wallet persona or global settings
-    const baseDelay = Math.floor(Math.random() * 19) + 1; // 1-20 seconds
-    let gasStrategy: AntiSybilConfig['gasStrategy'] = 'average';
+    const automationConfig = config.get('automation') as any;
+    const minDelay = automationConfig?.executionDelayMin || 1000; // Default 1 second
+    const maxDelay = automationConfig?.executionDelayMax || 20000; // Default 20 seconds
 
-    if (persona.behaviorProfile === 'aggressive') {
-      gasStrategy = Math.random() > 0.5 ? 'fast' : 'random';
-    } else if (persona.behaviorProfile === 'passive') {
-      gasStrategy = 'average';
-    } else {
-      gasStrategy = Math.random() > 0.7 ? 'random' : 'average';
+    // Random delay within a configured range
+    const delay = Math.floor(Math.random() * (maxDelay - minDelay + 1)) + minDelay;
+
+    let gasStrategy: AntiSybilConfig['gasStrategy'] = 'average';
+    let calldataVariation = Math.random() > 0.5; // Randomly vary calldata patterns
+
+    // Implement anti-sybil rules based on wallet persona
+    switch (persona.behaviorProfile) {
+      case 'aggressive':
+        gasStrategy = Math.random() > 0.3 ? 'fast' : 'random'; // More likely fast, sometimes random
+        calldataVariation = Math.random() > 0.2; // More likely to vary calldata
+        break;
+      case 'passive':
+        gasStrategy = Math.random() > 0.7 ? 'slow' : 'average'; // More likely average, sometimes slow
+        calldataVariation = Math.random() > 0.8; // Less likely to vary calldata
+        break;
+      case 'normal':
+      default:
+        gasStrategy = Math.random() > 0.5 ? 'random' : 'average'; // Mix of random and average
+        calldataVariation = Math.random() > 0.5;
+        break;
     }
 
     return {
-      delay: baseDelay * 1000,
+      delay,
       gasStrategy,
-      calldataVariation: Math.random() > 0.5, // Randomly vary calldata patterns
+      calldataVariation,
     };
   }
 

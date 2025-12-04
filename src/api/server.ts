@@ -37,7 +37,7 @@ const automationEngine = new AutomationEngine(databaseService);
 const tieEngine = new TIEEngine(databaseService, io); // Pass io to TIEEngine
 const faucetManager = new TestnetFaucetManager();
 const devnetDeployer = new DevnetDeployer();
-const taeEngine = new TAEEngine(databaseService, automationEngine, io); // Pass io to TAEEngine
+const taeEngine = new TAEEngine(databaseService, automationEngine, io, faucetManager); // Pass faucetManager to TAEEngine
 
 // Socket.IO connection handling
 io.on('connection', (socket) => {

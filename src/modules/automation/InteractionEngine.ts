@@ -26,7 +26,8 @@ export class InteractionEngine {
     contractAddress: string,
     parameters: any,
     privateKey: string, // Wallet's private key for signing
-    gasStrategy: 'random' | 'fast' | 'average'
+    gasStrategy: 'random' | 'fast' | 'average' | 'slow', // Updated gasStrategy type
+    calldataVariation: boolean // New parameter for calldata variation
   ): Promise<InteractionResult> {
     console.log(`Executing ${type} interaction on ${chain} for contract ${contractAddress} with params:`, parameters);
 
@@ -48,6 +49,19 @@ export class InteractionEngine {
         gasPrice = ethers.parseUnits(gasData.maxFeePerGas, 'wei'); // Use fast gas if available
       } else if (gasStrategy === 'average' && gasData.gasPrice) {
         gasPrice = ethers.parseUnits(gasData.gasPrice, 'wei'); // Use average gas if available
+      } else if (gasStrategy === 'slow') {
+        // Simulate a 'slow' gas strategy, e.g., lower than average
+        const averageGwei = parseFloat(ethers.formatUnits(gasData.gasPrice || '20000000000', 'gwei'));
+        gasPrice = ethers.parseUnits(Math.max(1, averageGwei * 0.8).toFixed(0), 'gwei');
+      }
+
+      let txData = parameters.data || '0x';
+      if (calldataVariation && txData !== '0x') {
+        // Simulate calldata variation by appending a small random number
+        // This is a placeholder; real calldata variation is highly context-specific
+        const randomSuffix = Math.floor(Math.random() * 1000).toString(16);
+        txData = txData + randomSuffix;
+        console.log(`Applied calldata variation for signal ${type}. New data suffix: ${randomSuffix}`);
       }
 
       // Construct a basic transaction payload. This will need to be more sophisticated
@@ -56,7 +70,7 @@ export class InteractionEngine {
       const tx: ethers.TransactionRequest = {
         to: contractAddress,
         value: parameters.value ? ethers.parseEther(parameters.value.toString()) : 0, // Example: if parameters include a 'value'
-        data: parameters.data || '0x', // Example: if parameters include 'data' for a contract call
+        data: txData, // Use potentially varied data
         gasLimit: parameters.gasLimit || 210000, // Default gas limit, can be estimated
         gasPrice: gasPrice,
         nonce: await wallet.getNonce(),

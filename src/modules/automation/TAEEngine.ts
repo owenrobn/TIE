@@ -10,6 +10,7 @@ import { ReportingEngine } from './ReportingEngine';
 import { DatabaseService } from '../../storage/DatabaseService'; // Import DatabaseService
 import { AutomationEngine } from './AutomationEngine'; // Import AutomationEngine
 import { EVMAdapter } from '../adapters/EVMAdapter'; // Import EVMAdapter
+import { TestnetFaucetManager } from './TestnetFaucetManager'; // Import TestnetFaucetManager
 import config from 'config'; // Import config
 import { Server as SocketIOServer } from 'socket.io'; // Import Socket.IO Server
 
@@ -26,12 +27,14 @@ export class TAEEngine {
   private databaseService: DatabaseService; // Inject DatabaseService
   private automationEngine: AutomationEngine; // Inject AutomationEngine
   private chainAdapters: Map<string, EVMAdapter>; // Store chain adapters
+  private faucetManager: TestnetFaucetManager; // Add faucetManager property
   private io: SocketIOServer; // Add Socket.IO server instance
 
-  constructor(databaseService: DatabaseService, automationEngine: AutomationEngine, io: SocketIOServer) { // Accept io instance
+  constructor(databaseService: DatabaseService, automationEngine: AutomationEngine, io: SocketIOServer, faucetManager: TestnetFaucetManager) { // Accept faucetManager
     this.databaseService = databaseService; // Assign DatabaseService
     this.automationEngine = automationEngine; // Assign AutomationEngine
     this.io = io; // Assign io instance
+    this.faucetManager = faucetManager; // Assign faucetManager
     
     const securityConfig = config.get('security') as any;
     const chainsConfig = config.get('chains') as any;
@@ -153,9 +156,50 @@ export class TAEEngine {
       return;
     }
 
+    // --- NEW: Automatic Faucet Request ---
+    const chainId = signal.chain; // Assuming signal.chain maps to a known chainId for faucet
+    const walletAddress = wallet.address;
+    const automationConfig = config.get('automation') as any;
+    const faucetThreshold = automationConfig?.faucetThreshold || 0.01; // Default 0.01 ETH
+
+    const adapter = this.chainAdapters.get(chainId);
+    if (adapter) {
+      try {
+        const balance = parseFloat(await adapter.getBalance(walletAddress));
+        if (balance < faucetThreshold) {
+          console.log(`Wallet ${walletAddress} balance (${balance} ETH) below threshold (${faucetThreshold} ETH) on ${chainId}. Requesting funds...`);
+          const faucetSuccess = await this.faucetManager.requestFunds(chainId, walletAddress);
+          if (!faucetSuccess) {
+            console.warn(`Failed to get funds from faucet for ${walletAddress} on ${chainId}. Skipping execution.`);
+            this.executionQueue.addFailed(signal, 'Insufficient funds and faucet request failed/cooldown active.');
+            this.io.emit('failedSignal', { signal, error: 'Insufficient funds and faucet request failed/cooldown active.' });
+            this.io.emit('taeStatusUpdate', this.getEngineStatus());
+            return;
+          }
+          // Wait a bit for funds to arrive (simulation)
+          await new Promise(resolve => setTimeout(resolve, 5000));
+          console.log(`Faucet request for ${walletAddress} on ${chainId} completed (simulated).`);
+        }
+      } catch (balanceError) {
+        console.error(`Error checking balance for wallet ${walletAddress} on ${chainId}:`, balanceError);
+        // Decide whether to proceed without balance check or fail
+        this.executionQueue.addFailed(signal, `Failed to check balance: ${balanceError}`);
+        this.io.emit('failedSignal', { signal, error: `Failed to check balance: ${balanceError}` });
+        this.io.emit('taeStatusUpdate', this.getEngineStatus());
+        return;
+      }
+    } else {
+      console.warn(`No EVMAdapter found for chain ${chainId} to check balance for wallet ${walletAddress}. Proceeding without balance check.`);
+    }
+    // --- END NEW ---
+
     try {
       const antiSybilConfig = this.antiSybilEngine.getAntiSybilConfig(wallet.persona);
-      await new Promise(resolve => setTimeout(resolve, antiSybilConfig.delay)); // Apply delay
+      
+      // Apply dynamic delay based on anti-sybil config
+      const delay = antiSybilConfig.delay;
+      console.log(`Applying anti-sybil delay of ${delay}ms for signal ${signal.signal_id}`);
+      await new Promise(resolve => setTimeout(resolve, delay)); 
 
       console.log(`Executing action for signal ${signal.signal_id} with wallet ${wallet.address}`);
       const executionResult = await this.interactionEngine.executeInteraction(
@@ -164,7 +208,8 @@ export class TAEEngine {
         signal.context.contract_address,
         signal.context.parameters,
         wallet.privateKey,
-        antiSybilConfig.gasStrategy
+        antiSybilConfig.gasStrategy,
+        antiSybilConfig.calldataVariation // Pass calldata variation flag
       );
 
       this.rewardTracker.recordExecution(signal.signal_id, wallet.address, executionResult);
