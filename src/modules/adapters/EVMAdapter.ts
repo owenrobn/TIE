@@ -110,16 +110,28 @@ export class EVMAdapter extends ChainAdapter {
     }
   }
 
-  async simulateTransaction(txPayload: any): Promise<any> {
-    // Implementation for simulating a transaction
-    console.log(`Simulating transaction on ${this.chainId} (simulated)`);
-    // True transaction simulation often requires a local EVM fork (like Anvil or Hardhat)
-    // or a specialized RPC endpoint that supports `eth_call` with state overrides.
-    return {
-      success: true,
-      gasUsed: 21000,
-      result: "0x"
-    };
+  async simulateTransaction(txPayload: ethers.TransactionRequest): Promise<any> {
+    console.log(`Performing preflight simulation (eth_call) on ${this.chainId} for transaction:`, txPayload);
+    try {
+      const result = await this.provider.call(txPayload);
+      // If call succeeds, it means the transaction would likely not revert
+      // We can also try to estimate gas to see if it's a valid transaction
+      const gasEstimate = await this.provider.estimateGas(txPayload);
+      return {
+        success: true,
+        gasUsed: gasEstimate.toString(),
+        result: result,
+        message: "Preflight simulation successful."
+      };
+    } catch (error: any) {
+      console.error(`Preflight simulation failed on ${this.chainId}:`, error);
+      return {
+        success: false,
+        gasUsed: "0",
+        result: null,
+        error: error.message || "Preflight simulation failed."
+      };
+    }
   }
 
   async fetchGasData(): Promise<any> {
