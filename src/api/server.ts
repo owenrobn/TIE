@@ -3,7 +3,7 @@
 import express, { Request, Response } from 'express';
 import { TIEEngine } from '../modules/engine/TIEEngine';
 import { TestnetFaucetManager } from '../modules/automation/TestnetFaucetManager';
-import { DevnetDeployer } from '../modules/automation/DevnetDeployer'; // Import DevnetDeployer
+import { DevnetDeployer } from '../modules/automation/DevnetDeployer';
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -14,7 +14,7 @@ app.use(express.json());
 // Initialize TIE Engine, TestnetFaucetManager, and DevnetDeployer
 const tieEngine = new TIEEngine();
 const faucetManager = new TestnetFaucetManager();
-const devnetDeployer = new DevnetDeployer(); // Instantiate DevnetDeployer
+const devnetDeployer = new DevnetDeployer();
 
 // Routes
 app.get('/api/health', (req: Request, res: Response) => {
@@ -39,7 +39,7 @@ app.post('/api/detectors/:name/toggle', (req: Request, res: Response) => {
 });
 
 app.get('/api/signals', (req: Request, res: Response) => {
-  // In a real implementation, this would fetch signals from a database
+  // Expanded mock signals to reflect various detector types
   const signals = [
     {
       id: 'sig-001',
@@ -51,6 +51,72 @@ app.get('/api/signals', (req: Request, res: Response) => {
       timestamp: '2023-06-15T14:30:00Z',
       status: 'New',
       detector: 'NewContractDeploymentDetector'
+    },
+    {
+      id: 'sig-002',
+      chain: 'Arbitrum Nitro',
+      type: 'Staking Reward Spike',
+      contract: '0x1f9840a85d5aF5bf1D1762F925BDADdC4201F984',
+      score: 85,
+      urgency: 'Medium',
+      timestamp: '2023-06-15T13:45:00Z',
+      status: 'Reviewed',
+      detector: 'StakingRewardSpikeDetector'
+    },
+    {
+      id: 'sig-003',
+      chain: 'Base Goerli',
+      type: 'Liquidity Event',
+      contract: '0x4200000000000000000000000000000000000006',
+      score: 78,
+      urgency: 'Low',
+      timestamp: '2023-06-15T12:15:00Z',
+      status: 'New',
+      detector: 'LiquidityBootstrappingDetector'
+    },
+    {
+      id: 'sig-004',
+      chain: 'Optimism Goerli',
+      type: 'Governance Activity',
+      contract: '0x4200000000000000000000000000000000000042',
+      score: 67,
+      urgency: 'Low',
+      timestamp: '2023-06-15T11:30:00Z',
+      status: 'Reviewed',
+      detector: 'GovernanceActivityDetector'
+    },
+    {
+      id: 'sig-005',
+      chain: 'Ethereum Sepolia',
+      type: 'Price Mismatch',
+      contract: '0xabcde12345abcde12345abcde12345abcde12345',
+      score: 90,
+      urgency: 'High',
+      timestamp: '2023-06-15T10:00:00Z',
+      status: 'New',
+      detector: 'PriceMismatchDetector'
+    },
+    {
+      id: 'sig-006',
+      chain: 'Arbitrum Nitro',
+      type: 'Oracle Lag',
+      contract: '0xfedcb12345fedcb12345fedcb12345fedcb12345',
+      score: 88,
+      urgency: 'Medium',
+      timestamp: '2023-06-15T09:30:00Z',
+      status: 'New',
+      detector: 'OracleLagDetector'
+    },
+    {
+      id: 'sig-007',
+      chain: 'Base Goerli',
+      type: 'Liquidation Opportunity',
+      contract: '0x12345fedcba12345fedcba12345fedcba12345',
+      score: 95,
+      urgency: 'High',
+      timestamp: '2023-06-15T08:00:00Z',
+      status: 'New',
+      detector: 'LiquidationOpportunityDetector'
     }
   ];
   

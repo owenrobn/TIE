@@ -1,6 +1,6 @@
 "use client";
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -11,8 +11,83 @@ import {
   Zap,
   ExternalLink
 } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
+
+interface Signal {
+  id: string;
+  chain: string;
+  type: string;
+  contract: string;
+  score: number;
+  urgency: 'High' | 'Medium' | 'Low';
+  timestamp: string;
+  status: string;
+  detector: string;
+}
+
+interface DetectorStatus {
+  name: string;
+  enabled: boolean;
+  lastRun: string | null;
+  status: 'active' | 'inactive';
+}
 
 const Dashboard = () => {
+  const { toast } = useToast();
+  const [signals, setSignals] = useState<Signal[]>([]);
+  const [detectorStatuses, setDetectorStatuses] = useState<DetectorStatus[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const signalsResponse = await fetch('/api/signals');
+        if (!signalsResponse.ok) throw new Error('Failed to fetch signals');
+        const signalsData: Signal[] = await signalsResponse.json();
+        setSignals(signalsData);
+
+        const detectorsResponse = await fetch('/api/detectors/status');
+        if (!detectorsResponse.ok) throw new Error('Failed to fetch detector statuses');
+        const detectorsData: DetectorStatus[] = await detectorsResponse.json();
+        setDetectorStatuses(detectorsData);
+      } catch (error: any) {
+        toast({
+          title: "Error",
+          description: `Failed to load dashboard data: ${error.message}`,
+          variant: "destructive",
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+    const interval = setInterval(fetchData, 15000); // Refresh every 15 seconds
+    return () => clearInterval(interval);
+  }, [toast]);
+
+  const activeSignalsCount = signals.length;
+  const activeDetectorsCount = detectorStatuses.filter(d => d.enabled).length;
+  const totalDetectors = detectorStatuses.length;
+  const highPrioritySignals = signals.filter(s => s.urgency === 'High').length;
+  const averageScore = signals.length > 0 
+    ? (signals.reduce((sum, s) => sum + s.score, 0) / signals.length).toFixed(1) 
+    : 'N/A';
+
+  const getRelativeTime = (timestamp: string) => {
+    const now = new Date();
+    const signalDate = new Date(timestamp);
+    const diffSeconds = Math.floor((now.getTime() - signalDate.getTime()) / 1000);
+
+    if (diffSeconds < 60) return `${diffSeconds} sec ago`;
+    const diffMinutes = Math.floor(diffSeconds / 60);
+    if (diffMinutes < 60) return `${diffMinutes} min ago`;
+    const diffHours = Math.floor(diffMinutes / 60);
+    if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
+    const diffDays = Math.floor(diffHours / 24);
+    return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="max-w-7xl mx-auto">
@@ -34,8 +109,8 @@ const Dashboard = () => {
               <Activity className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">24</div>
-              <p className="text-xs text-muted-foreground">+12 from last hour</p>
+              <div className="text-2xl font-bold">{activeSignalsCount}</div>
+              <p className="text-xs text-muted-foreground">+12 from last hour</p> {/* This would need more complex backend logic */}
             </CardContent>
           </Card>
           
@@ -45,8 +120,8 @@ const Dashboard = () => {
               <TrendingUp className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">8/12</div>
-              <p className="text-xs text-muted-foreground">4 offline</p>
+              <div className="text-2xl font-bold">{activeDetectorsCount}/{totalDetectors}</div>
+              <p className="text-xs text-muted-foreground">{totalDetectors - activeDetectorsCount} offline</p>
             </CardContent>
           </Card>
           
@@ -56,7 +131,7 @@ const Dashboard = () => {
               <AlertTriangle className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">7</div>
+              <div className="text-2xl font-bold">{highPrioritySignals}</div>
               <p className="text-xs text-muted-foreground">Requires attention</p>
             </CardContent>
           </Card>
@@ -67,8 +142,8 @@ const Dashboard = () => {
               <Zap className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">82.4</div>
-              <p className="text-xs text-muted-foreground">+5.2 from yesterday</p>
+              <div className="text-2xl font-bold">{averageScore}</div>
+              <p className="text-xs text-muted-foreground">+5.2 from yesterday</p> {/* This would need more complex backend logic */}
             </CardContent>
           </Card>
         </div>
@@ -79,28 +154,28 @@ const Dashboard = () => {
               <CardTitle>Recent Signals</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                {[
-                  { id: 1, chain: 'Ethereum Sepolia', type: 'New Contract', score: 92, time: '2 min ago' },
-                  { id: 2, chain: 'Arbitrum Nitro', type: 'Staking Reward', score: 78, time: '15 min ago' },
-                  { id: 3, chain: 'Base Goerli', type: 'Liquidity Event', score: 85, time: '32 min ago' },
-                  { id: 4, chain: 'Optimism Goerli', type: 'Governance', score: 67, time: '1 hour ago' },
-                ].map((signal) => (
-                  <div key={signal.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50">
-                    <div>
-                      <div className="font-medium">{signal.chain}</div>
-                      <div className="text-sm text-gray-500">{signal.type}</div>
+              {loading ? (
+                <div className="text-center text-gray-500">Loading recent signals...</div>
+              ) : (
+                <div className="space-y-4">
+                  {signals.slice(0, 4).map((signal) => ( // Display top 4 recent signals
+                    <div key={signal.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50">
+                      <div>
+                        <div className="font-medium">{signal.chain}</div>
+                        <div className="text-sm text-gray-500">{signal.type}</div>
+                      </div>
+                      <div className="flex items-center space-x-3">
+                        <Badge variant={signal.score > 80 ? "default" : signal.score > 60 ? "secondary" : "outline"}>
+                          {signal.score}
+                        </Badge>
+                        <span className="text-sm text-gray-500">{getRelativeTime(signal.timestamp)}</span>
+                        <ExternalLink className="h-4 w-4 text-gray-400" />
+                      </div>
                     </div>
-                    <div className="flex items-center space-x-3">
-                      <Badge variant={signal.score > 80 ? "default" : signal.score > 60 ? "secondary" : "outline"}>
-                        {signal.score}
-                      </Badge>
-                      <span className="text-sm text-gray-500">{signal.time}</span>
-                      <ExternalLink className="h-4 w-4 text-gray-400" />
-                    </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                  {signals.length === 0 && <p className="text-center text-gray-500">No recent signals found.</p>}
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -109,26 +184,26 @@ const Dashboard = () => {
               <CardTitle>Detector Status</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                {[
-                  { name: 'NewChainDetector', status: 'active', chain: 'All' },
-                  { name: 'NewContractDeploymentDetector', status: 'active', chain: 'EVM' },
-                  { name: 'StakingRewardSpikeDetector', status: 'active', chain: 'All' },
-                  { name: 'BridgeEventDetector', status: 'offline', chain: 'All' },
-                  { name: 'GovernanceActivityDetector', status: 'active', chain: 'EVM' },
-                  { name: 'LiquidityBootstrappingDetector', status: 'active', chain: 'EVM' },
-                ].map((detector, index) => (
-                  <div key={index} className="flex items-center justify-between p-3 border rounded-lg">
-                    <div>
-                      <div className="font-medium">{detector.name}</div>
-                      <div className="text-sm text-gray-500">{detector.chain}</div>
+              {loading ? (
+                <div className="text-center text-gray-500">Loading detector statuses...</div>
+              ) : (
+                <div className="space-y-4">
+                  {detectorStatuses.map((detector, index) => (
+                    <div key={index} className="flex items-center justify-between p-3 border rounded-lg">
+                      <div>
+                        <div className="font-medium">{detector.name}</div>
+                        <div className="text-sm text-gray-500">
+                          {detector.name.includes('MEV') ? 'MEV Detector' : 'Testnet Opportunity Detector'}
+                        </div>
+                      </div>
+                      <Badge variant={detector.status === 'active' ? 'default' : 'destructive'}>
+                        {detector.status}
+                      </Badge>
                     </div>
-                    <Badge variant={detector.status === 'active' ? 'default' : 'destructive'}>
-                      {detector.status}
-                    </Badge>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                  {detectorStatuses.length === 0 && <p className="text-center text-gray-500">No detectors found.</p>}
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>

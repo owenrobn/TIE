@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -15,59 +15,51 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
+interface Signal {
+  id: string;
+  chain: string;
+  type: string;
+  contract: string;
+  score: number;
+  urgency: 'High' | 'Medium' | 'Low';
+  timestamp: string;
+  status: string;
+  detector: string;
+}
+
 const Signals = () => {
   const { toast } = useToast();
+  const [allSignals, setAllSignals] = useState<Signal[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
+  const [sortConfig, setSortConfig] = useState<{ key: keyof Signal; direction: 'asc' | 'desc' } | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  const signals = [
-    {
-      id: 'sig-001',
-      chain: 'Ethereum Sepolia',
-      type: 'New Contract Deployment',
-      contract: '0x742d35Cc6634C0532925a3b844Bc454e4438f44e',
-      score: 92,
-      urgency: 'High',
-      timestamp: '2023-06-15T14:30:00Z',
-      status: 'New',
-      detector: 'NewContractDeploymentDetector'
-    },
-    {
-      id: 'sig-002',
-      chain: 'Arbitrum Nitro',
-      type: 'Staking Reward Spike',
-      contract: '0x1f9840a85d5aF5bf1D1762F925BDADdC4201F984',
-      score: 85,
-      urgency: 'Medium',
-      timestamp: '2023-06-15T13:45:00Z',
-      status: 'Reviewed',
-      detector: 'StakingRewardSpikeDetector'
-    },
-    {
-      id: 'sig-003',
-      chain: 'Base Goerli',
-      type: 'Liquidity Event',
-      contract: '0x4200000000000000000000000000000000000006',
-      score: 78,
-      urgency: 'Low',
-      timestamp: '2023-06-15T12:15:00Z',
-      status: 'New',
-      detector: 'LiquidityBootstrappingDetector'
-    },
-    {
-      id: 'sig-004',
-      chain: 'Optimism Goerli',
-      type: 'Governance Activity',
-      contract: '0x4200000000000000000000000000000000000042',
-      score: 67,
-      urgency: 'Low',
-      timestamp: '2023-06-15T11:30:00Z',
-      status: 'Reviewed',
-      detector: 'GovernanceActivityDetector'
+  const fetchSignals = async () => {
+    try {
+      const response = await fetch('/api/signals');
+      if (!response.ok) {
+        throw new Error('Failed to fetch signals');
+      }
+      const data: Signal[] = await response.json();
+      setAllSignals(data);
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: `Failed to load signals: ${error.message}`,
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
     }
-  ];
+  };
 
-  const handleSort = (key: string) => {
+  useEffect(() => {
+    fetchSignals();
+    const interval = setInterval(fetchSignals, 15000); // Refresh every 15 seconds
+    return () => clearInterval(interval);
+  }, [toast]);
+
+  const handleSort = (key: keyof Signal) => {
     let direction: 'asc' | 'desc' = 'asc';
     if (sortConfig && sortConfig.key === key && sortConfig.direction === 'asc') {
       direction = 'desc';
@@ -76,24 +68,38 @@ const Signals = () => {
   };
 
   const sortedSignals = React.useMemo(() => {
-    if (!sortConfig) return signals;
+    if (!sortConfig) return allSignals;
     
-    return [...signals].sort((a, b) => {
-      if (a[sortConfig.key as keyof typeof a] < b[sortConfig.key as keyof typeof b]) {
-        return sortConfig.direction === 'asc' ? -1 : 1;
+    return [...allSignals].sort((a, b) => {
+      const aValue = a[sortConfig.key];
+      const bValue = b[sortConfig.key];
+
+      if (typeof aValue === 'string' && typeof bValue === 'string') {
+        return sortConfig.direction === 'asc' ? aValue.localeCompare(bValue) : bValue.localeCompare(aValue);
       }
-      if (a[sortConfig.key as keyof typeof a] > b[sortConfig.key as keyof typeof b]) {
-        return sortConfig.direction === 'asc' ? 1 : -1;
+      if (typeof aValue === 'number' && typeof bValue === 'number') {
+        return sortConfig.direction === 'asc' ? aValue - bValue : bValue - aValue;
       }
-      return 0;
+      // Fallback for other types or mixed types, treat as strings
+      return sortConfig.direction === 'asc' 
+        ? String(aValue).localeCompare(String(bValue)) 
+        : String(bValue).localeCompare(String(aValue));
     });
-  }, [signals, sortConfig]);
+  }, [allSignals, sortConfig]);
 
   const filteredSignals = sortedSignals.filter(signal => 
     signal.chain.toLowerCase().includes(searchTerm.toLowerCase()) ||
     signal.type.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    signal.contract.toLowerCase().includes(searchTerm.toLowerCase())
+    signal.contract.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    signal.detector.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  const getSortIcon = (key: keyof Signal) => {
+    if (!sortConfig || sortConfig.key !== key) return null;
+    return sortConfig.direction === 'asc' ? 
+      <ChevronUp className="ml-1 h-4 w-4" /> : 
+      <ChevronDown className="ml-1 h-4 w-4" />;
+  };
 
   const exportSignals = () => {
     toast({
@@ -136,124 +142,114 @@ const Signals = () => {
             <CardTitle>Detected Opportunities</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b">
-                    <th 
-                      className="text-left py-3 px-4 font-medium cursor-pointer"
-                      onClick={() => handleSort('chain')}
-                    >
-                      <div className="flex items-center">
-                        Chain
-                        {sortConfig?.key === 'chain' && (
-                          sortConfig.direction === 'asc' ? 
-                          <ChevronUp className="ml-1 h-4 w-4" /> : 
-                          <ChevronDown className="ml-1 h-4 w-4" />
-                        )}
-                      </div>
-                    </th>
-                    <th 
-                      className="text-left py-3 px-4 font-medium cursor-pointer"
-                      onClick={() => handleSort('type')}
-                    >
-                      <div className="flex items-center">
-                        Type
-                        {sortConfig?.key === 'type' && (
-                          sortConfig.direction === 'asc' ? 
-                          <ChevronUp className="ml-1 h-4 w-4" /> : 
-                          <ChevronDown className="ml-1 h-4 w-4" />
-                        )}
-                      </div>
-                    </th>
-                    <th className="text-left py-3 px-4 font-medium">Contract</th>
-                    <th 
-                      className="text-left py-3 px-4 font-medium cursor-pointer"
-                      onClick={() => handleSort('score')}
-                    >
-                      <div className="flex items-center">
-                        Score
-                        {sortConfig?.key === 'score' && (
-                          sortConfig.direction === 'asc' ? 
-                          <ChevronUp className="ml-1 h-4 w-4" /> : 
-                          <ChevronDown className="ml-1 h-4 w-4" />
-                        )}
-                      </div>
-                    </th>
-                    <th 
-                      className="text-left py-3 px-4 font-medium cursor-pointer"
-                      onClick={() => handleSort('urgency')}
-                    >
-                      <div className="flex items-center">
-                        Urgency
-                        {sortConfig?.key === 'urgency' && (
-                          sortConfig.direction === 'asc' ? 
-                          <ChevronUp className="ml-1 h-4 w-4" /> : 
-                          <ChevronDown className="ml-1 h-4 w-4" />
-                        )}
-                      </div>
-                    </th>
-                    <th 
-                      className="text-left py-3 px-4 font-medium cursor-pointer"
-                      onClick={() => handleSort('timestamp')}
-                    >
-                      <div className="flex items-center">
-                        Timestamp
-                        {sortConfig?.key === 'timestamp' && (
-                          sortConfig.direction === 'asc' ? 
-                          <ChevronUp className="ml-1 h-4 w-4" /> : 
-                          <ChevronDown className="ml-1 h-4 w-4" />
-                        )}
-                      </div>
-                    </th>
-                    <th className="text-left py-3 px-4 font-medium">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredSignals.map((signal) => (
-                    <tr key={signal.id} className="border-b hover:bg-gray-50">
-                      <td className="py-3 px-4">
-                        <div className="font-medium">{signal.chain}</div>
-                        <div className="text-sm text-gray-500">{signal.detector}</div>
-                      </td>
-                      <td className="py-3 px-4">
-                        <Badge variant="outline">{signal.type}</Badge>
-                      </td>
-                      <td className="py-3 px-4">
-                        <div className="font-mono text-sm">{signal.contract.substring(0, 6)}...{signal.contract.substring(signal.contract.length - 4)}</div>
-                      </td>
-                      <td className="py-3 px-4">
-                        <Badge 
-                          variant={signal.score > 80 ? "default" : signal.score > 60 ? "secondary" : "outline"}
-                        >
-                          {signal.score}
-                        </Badge>
-                      </td>
-                      <td className="py-3 px-4">
-                        <Badge 
-                          variant={signal.urgency === 'High' ? "destructive" : signal.urgency === 'Medium' ? "default" : "secondary"}
-                        >
-                          {signal.urgency}
-                        </Badge>
-                      </td>
-                      <td className="py-3 px-4 text-sm text-gray-500">
-                        {new Date(signal.timestamp).toLocaleString()}
-                      </td>
-                      <td className="py-3 px-4">
-                        <div className="flex space-x-2">
-                          <Button variant="outline" size="sm">
-                            <ExternalLink className="h-4 w-4" />
-                          </Button>
-                          <Button variant="outline" size="sm">
-                            Review
-                          </Button>
+            {loading ? (
+              <div className="text-center text-gray-500">Loading signals...</div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b">
+                      <th 
+                        className="text-left py-3 px-4 font-medium cursor-pointer"
+                        onClick={() => handleSort('chain')}
+                      >
+                        <div className="flex items-center">
+                          Chain
+                          {getSortIcon('chain')}
                         </div>
-                      </td>
+                      </th>
+                      <th 
+                        className="text-left py-3 px-4 font-medium cursor-pointer"
+                        onClick={() => handleSort('type')}
+                      >
+                        <div className="flex items-center">
+                          Type
+                          {getSortIcon('type')}
+                        </div>
+                      </th>
+                      <th className="text-left py-3 px-4 font-medium">Contract</th>
+                      <th 
+                        className="text-left py-3 px-4 font-medium cursor-pointer"
+                        onClick={() => handleSort('score')}
+                      >
+                        <div className="flex items-center">
+                          Score
+                          {getSortIcon('score')}
+                        </div>
+                      </th>
+                      <th 
+                        className="text-left py-3 px-4 font-medium cursor-pointer"
+                        onClick={() => handleSort('urgency')}
+                      >
+                        <div className="flex items-center">
+                          Urgency
+                          {getSortIcon('urgency')}
+                        </div>
+                      </th>
+                      <th 
+                        className="text-left py-3 px-4 font-medium cursor-pointer"
+                        onClick={() => handleSort('timestamp')}
+                      >
+                        <div className="flex items-center">
+                          Timestamp
+                          {getSortIcon('timestamp')}
+                        </div>
+                      </th>
+                      <th className="text-left py-3 px-4 font-medium">Actions</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {filteredSignals.length === 0 ? (
+                      <tr>
+                        <td colSpan={7} className="text-center py-4 text-gray-500">No signals found.</td>
+                      </tr>
+                    ) : (
+                      filteredSignals.map((signal) => (
+                        <tr key={signal.id} className="border-b hover:bg-gray-50">
+                          <td className="py-3 px-4">
+                            <div className="font-medium">{signal.chain}</div>
+                            <div className="text-sm text-gray-500">{signal.detector}</div>
+                          </td>
+                          <td className="py-3 px-4">
+                            <Badge variant="outline">{signal.type}</Badge>
+                          </td>
+                          <td className="py-3 px-4">
+                            <div className="font-mono text-sm">{signal.contract.substring(0, 6)}...{signal.contract.substring(signal.contract.length - 4)}</div>
+                          </td>
+                          <td className="py-3 px-4">
+                            <Badge 
+                              variant={signal.score > 80 ? "default" : signal.score > 60 ? "secondary" : "outline"}
+                            >
+                              {signal.score}
+                            </Badge>
+                          </td>
+                          <td className="py-3 px-4">
+                            <Badge 
+                              variant={signal.urgency === 'High' ? "destructive" : signal.urgency === 'Medium' ? "default" : "secondary"}
+                            >
+                              {signal.urgency}
+                            </Badge>
+                          </td>
+                          <td className="py-3 px-4 text-sm text-gray-500">
+                            {new Date(signal.timestamp).toLocaleString()}
+                          </td>
+                          <td className="py-3 px-4">
+                            <div className="flex space-x-2">
+                              <Button variant="outline" size="sm">
+                                <ExternalLink className="h-4 w-4" />
+                              </Button>
+                              <Button variant="outline" size="sm">
+                                Review
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
