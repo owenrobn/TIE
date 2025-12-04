@@ -18,7 +18,7 @@ interface DetectorStatus {
   name: string;
   enabled: boolean;
   lastRun: string | null;
-  status: 'active' | 'inactive';
+  status: 'active' | 'inactive' | 'error'; // Added 'error' status
 }
 
 const Detectors = () => {
@@ -142,7 +142,7 @@ const Detectors = () => {
                       <CardTitle className="flex items-center">
                         {detector.name}
                         <Badge 
-                          variant={detector.status === 'active' ? 'default' : 'destructive'}
+                          variant={detector.status === 'active' ? 'default' : detector.status === 'error' ? 'destructive' : 'secondary'}
                           className="ml-2"
                         >
                           {detector.status}

@@ -29,7 +29,7 @@ interface DetectorStatus {
   name: string;
   enabled: boolean;
   lastRun: string | null;
-  status: 'active' | 'inactive';
+  status: 'active' | 'inactive' | 'error';
 }
 
 const Dashboard = () => {
@@ -196,7 +196,7 @@ const Dashboard = () => {
                           {detector.name.includes('MEV') ? 'MEV Detector' : 'Testnet Opportunity Detector'}
                         </div>
                       </div>
-                      <Badge variant={detector.status === 'active' ? 'default' : 'destructive'}>
+                      <Badge variant={detector.status === 'active' ? 'default' : detector.status === 'error' ? 'destructive' : 'secondary'}>
                         {detector.status}
                       </Badge>
                     </div>
