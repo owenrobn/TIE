@@ -8,6 +8,10 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=3000
+      - DB_HOST=postgres # Explicitly set for the app to connect to the postgres service
+      - DB_PORT=5432
+      - DB_NAME=tie_db
+      - DB_USER=tie_user
       - DB_PASSWORD=tie_password
     volumes:
       - ./data:/app/data

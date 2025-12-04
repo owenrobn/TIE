@@ -1,5 +1,5 @@
 import { Client } from 'pg';
-import config from 'config'; // Using the 'config' package for configuration
+// Removed direct import of 'config' for DB credentials to rely on process.env
 
 interface DetectorRecord {
   id: string;
@@ -46,16 +46,16 @@ interface WalletRecord {
 
 export class DatabaseService {
   private client: Client;
-  private dbConfig: any;
+  // private dbConfig: any; // No longer needed as we directly use process.env
 
   constructor() {
-    this.dbConfig = config.get('database');
+    // Directly use process.env for database credentials, with defaults for local development/Docker Compose
     this.client = new Client({
-      host: this.dbConfig.host,
-      port: this.dbConfig.port,
-      database: this.dbConfig.name,
-      user: this.dbConfig.user,
-      password: this.dbConfig.password,
+      host: process.env.DB_HOST || 'localhost', // 'postgres' in Docker, 'localhost' for local dev
+      port: parseInt(process.env.DB_PORT || '5432'),
+      database: process.env.DB_NAME || 'tie_db',
+      user: process.env.DB_USER || 'tie_user',
+      password: process.env.DB_PASSWORD || 'tie_password',
     });
   }
 
