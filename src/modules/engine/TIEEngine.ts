@@ -3,6 +3,14 @@ import { Detector } from '../detectors/Detector';
 import { NewChainDetector } from '../detectors/NewChainDetector';
 import { NewContractDeploymentDetector } from '../detectors/NewContractDeploymentDetector';
 import { StakingRewardSpikeDetector } from '../detectors/StakingRewardSpikeDetector';
+import { BridgeEventDetector } from '../detectors/BridgeEventDetector'; // New
+import { GovernanceActivityDetector } from '../detectors/GovernanceActivityDetector'; // New
+import { LiquidityBootstrappingDetector } from '../detectors/LiquidityBootstrappingDetector'; // New
+import { PriceMismatchDetector } from '../detectors/PriceMismatchDetector'; // New
+import { OracleLagDetector } from '../detectors/OracleLagDetector'; // New
+import { LiquidityImbalanceDetector } from '../detectors/LiquidityImbalanceDetector'; // New
+import { IncentiveMisalignmentDetector } from '../detectors/IncentiveMisalignmentDetector'; // New
+import { LiquidationOpportunityDetector } from '../detectors/LiquidationOpportunityDetector'; // New
 import { SimulationEngine } from '../simulation/SimulationEngine';
 import { ScoringEngine } from '../scoring/ScoringEngine';
 import { SignalDispatcher } from '../signals/SignalDispatcher';
@@ -22,7 +30,15 @@ export class TIEEngine {
     this.detectors = [
       new NewChainDetector(),
       new NewContractDeploymentDetector(),
-      new StakingRewardSpikeDetector()
+      new StakingRewardSpikeDetector(),
+      new BridgeEventDetector(), // New
+      new GovernanceActivityDetector(), // New
+      new LiquidityBootstrappingDetector(), // New
+      new PriceMismatchDetector(), // New
+      new OracleLagDetector(), // New
+      new LiquidityImbalanceDetector(), // New
+      new IncentiveMisalignmentDetector(), // New
+      new LiquidationOpportunityDetector() // New
     ];
     
     this.simulationEngine = new SimulationEngine();
@@ -161,7 +177,7 @@ export class TIEEngine {
     return this.detectors.map(detector => ({
       name: detector.name,
       enabled: detector.enabled,
-      lastRun: detector.lastRun,
+      lastRun: detector.lastRun ? detector.lastRun.toISOString() : null, // Convert Date to ISO string
       status: detector.enabled ? 'active' : 'inactive'
     }));
   }

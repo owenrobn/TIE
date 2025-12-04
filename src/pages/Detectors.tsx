@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -14,106 +14,97 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
+interface DetectorStatus {
+  name: string;
+  enabled: boolean;
+  lastRun: string | null;
+  status: 'active' | 'inactive';
+}
+
 const Detectors = () => {
   const { toast } = useToast();
-  const [detectors, setDetectors] = useState([
-    {
-      id: 'detector-1',
-      name: 'NewChainDetector',
-      description: 'Detects new testnets, devnets, and proto-mainnets early',
-      chains: ['All'],
-      status: 'active',
-      lastRun: '2023-06-15T14:30:00Z',
-      enabled: true
-    },
-    {
-      id: 'detector-2',
-      name: 'NewContractDeploymentDetector',
-      description: 'Identifies smart contracts that signal high-value airdrop potential',
-      chains: ['EVM', 'Solana'],
-      status: 'active',
-      lastRun: '2023-06-15T14:25:00Z',
-      enabled: true
-    },
-    {
-      id: 'detector-3',
-      name: 'StakingRewardSpikeDetector',
-      description: 'Analyzes reward mechanics such as staking, AMMs, bridges, governance',
-      chains: ['All'],
-      status: 'active',
-      lastRun: '2023-06-15T14:20:00Z',
-      enabled: true
-    },
-    {
-      id: 'detector-4',
-      name: 'BridgeEventDetector',
-      description: 'Monitors bridge events for cross-chain opportunities',
-      chains: ['EVM', 'Cosmos'],
-      status: 'offline',
-      lastRun: '2023-06-15T10:15:00Z',
-      enabled: false
-    },
-    {
-      id: 'detector-5',
-      name: 'GovernanceActivityDetector',
-      description: 'Detects governance proposals and voting opportunities',
-      chains: ['EVM'],
-      status: 'active',
-      lastRun: '2023-06-15T14:10:00Z',
-      enabled: true
-    },
-    {
-      id: 'detector-6',
-      name: 'LiquidityBootstrappingDetector',
-      description: 'Identifies new liquidity pools and bootstrapping events',
-      chains: ['EVM'],
-      status: 'active',
-      lastRun: '2023-06-15T14:05:00Z',
-      enabled: true
-    },
-    {
-      id: 'detector-7',
-      name: 'PriceMismatchDetector',
-      description: 'Detects MEV-style price inefficiencies on testnets',
-      chains: ['EVM'],
-      status: 'active',
-      lastRun: '2023-06-15T13:55:00Z',
-      enabled: true
-    },
-    {
-      id: 'detector-8',
-      name: 'OracleLagDetector',
-      description: 'Monitors oracle delays for arbitrage opportunities',
-      chains: ['EVM'],
-      status: 'active',
-      lastRun: '2023-06-15T13:50:00Z',
-      enabled: true
-    }
-  ]);
+  const [detectors, setDetectors] = useState<DetectorStatus[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const toggleDetector = (id: string) => {
-    setDetectors(detectors.map(detector => 
-      detector.id === id 
-        ? { ...detector, enabled: !detector.enabled } 
-        : detector
-    ));
-    
-    const detector = detectors.find(d => d.id === id);
-    if (detector) {
+  const fetchDetectors = async () => {
+    try {
+      const response = await fetch('/api/detectors/status');
+      if (!response.ok) {
+        throw new Error('Failed to fetch detector status');
+      }
+      const data: DetectorStatus[] = await response.json();
+      setDetectors(data);
+    } catch (error: any) {
       toast({
-        title: `${detector.enabled ? 'Disabled' : 'Enabled'} Detector`,
-        description: `${detector.name} has been ${detector.enabled ? 'disabled' : 'enabled'}.`
+        title: "Error",
+        description: `Failed to load detectors: ${error.message}`,
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchDetectors();
+    // Optionally, refresh detector status periodically
+    const interval = setInterval(fetchDetectors, 10000); // Refresh every 10 seconds
+    return () => clearInterval(interval);
+  }, [toast]);
+
+  const toggleDetector = async (name: string) => {
+    try {
+      const response = await fetch(`/api/detectors/${name}/toggle`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to toggle detector ${name}`);
+      }
+
+      const data = await response.json();
+      toast({
+        title: "Detector Toggled",
+        description: data.message,
+      });
+      fetchDetectors(); // Refresh the list to show updated status
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: `Failed to toggle detector: ${error.message}`,
+        variant: "destructive",
       });
     }
   };
 
   const restartDetector = (id: string) => {
-    const detector = detectors.find(d => d.id === id);
+    // In a real application, this would call a backend API to restart a specific detector
+    const detector = detectors.find(d => d.name === id);
     if (detector) {
       toast({
         title: "Restarting Detector",
-        description: `${detector.name} is restarting...`
+        description: `${detector.name} is restarting... (simulated)`
       });
+      // Simulate a restart by briefly changing status and then reverting
+      setDetectors(prevDetectors => 
+        prevDetectors.map(d => 
+          d.name === id ? { ...d, status: 'inactive', lastRun: new Date().toISOString() } : d
+        )
+      );
+      setTimeout(() => {
+        setDetectors(prevDetectors => 
+          prevDetectors.map(d => 
+            d.name === id ? { ...d, status: 'active', lastRun: new Date().toISOString() } : d
+          )
+        );
+        toast({
+          title: "Detector Restarted",
+          description: `${detector.name} has been restarted.`,
+        });
+      }, 2000); // Simulate 2-second restart
     }
   };
 
@@ -139,67 +130,73 @@ const Detectors = () => {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {detectors.map((detector) => (
-            <Card key={detector.id} className="hover:shadow-md transition-shadow">
-              <CardHeader>
-                <div className="flex justify-between items-start">
-                  <div>
-                    <CardTitle className="flex items-center">
-                      {detector.name}
-                      <Badge 
-                        variant={detector.status === 'active' ? 'default' : 'destructive'}
-                        className="ml-2"
-                      >
-                        {detector.status}
-                      </Badge>
-                    </CardTitle>
-                    <p className="text-sm text-gray-500 mt-1">{detector.description}</p>
+        {loading ? (
+          <div className="text-center text-gray-500">Loading detectors...</div>
+        ) : (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {detectors.map((detector) => (
+              <Card key={detector.name} className="hover:shadow-md transition-shadow">
+                <CardHeader>
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <CardTitle className="flex items-center">
+                        {detector.name}
+                        <Badge 
+                          variant={detector.status === 'active' ? 'default' : 'destructive'}
+                          className="ml-2"
+                        >
+                          {detector.status}
+                        </Badge>
+                      </CardTitle>
+                      {/* Placeholder for description, as it's not returned by API yet */}
+                      <p className="text-sm text-gray-500 mt-1">
+                        {detector.name.includes('MEV') ? 'MEV Detector' : 'Testnet Opportunity Detector'}
+                      </p>
+                    </div>
+                    <Switch
+                      checked={detector.enabled}
+                      onCheckedChange={() => toggleDetector(detector.name)}
+                    />
                   </div>
-                  <Switch
-                    checked={detector.enabled}
-                    onCheckedChange={() => toggleDetector(detector.id)}
-                  />
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="flex flex-wrap gap-2 mb-4">
-                  {detector.chains.map((chain, index) => (
-                    <Badge key={index} variant="secondary">
-                      {chain}
+                </CardHeader>
+                <CardContent>
+                  <div className="flex flex-wrap gap-2 mb-4">
+                    {/* Placeholder for chains, as it's not returned by API yet */}
+                    <Badge variant="secondary">
+                      {detector.name.includes('EVM') ? 'EVM' : 'All'}
                     </Badge>
-                  ))}
-                </div>
-                
-                <div className="flex justify-between items-center">
-                  <div className="text-sm text-gray-500">
-                    Last run: {new Date(detector.lastRun).toLocaleString()}
                   </div>
-                  <div className="flex space-x-2">
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      onClick={() => restartDetector(detector.id)}
-                    >
-                      <RotateCcw className="h-4 w-4" />
-                    </Button>
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      disabled={!detector.enabled}
-                    >
-                      {detector.enabled ? (
-                        <Pause className="h-4 w-4" />
-                      ) : (
-                        <Play className="h-4 w-4" />
-                      )}
-                    </Button>
+                  
+                  <div className="flex justify-between items-center">
+                    <div className="text-sm text-gray-500">
+                      Last run: {detector.lastRun ? new Date(detector.lastRun).toLocaleString() : 'Never'}
+                    </div>
+                    <div className="flex space-x-2">
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => restartDetector(detector.name)}
+                      >
+                        <RotateCcw className="h-4 w-4" />
+                      </Button>
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        disabled={!detector.enabled}
+                      >
+                        {detector.enabled ? (
+                          <Pause className="h-4 w-4" />
+                        ) : (
+                          <Play className="h-4 w-4" />
+                        )}
+                      </Button>
+                    </div>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
