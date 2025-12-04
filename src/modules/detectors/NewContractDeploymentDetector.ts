@@ -2,8 +2,8 @@
 import { Detector } from './Detector';
 
 export class NewContractDeploymentDetector extends Detector {
-  constructor() {
-    super('NewContractDeploymentDetector');
+  constructor(id: string = '') {
+    super('NewContractDeploymentDetector', id);
   }
 
   async detect(): Promise<any[]> {

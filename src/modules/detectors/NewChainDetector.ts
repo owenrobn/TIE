@@ -2,8 +2,8 @@
 import { Detector } from './Detector';
 
 export class NewChainDetector extends Detector {
-  constructor() {
-    super('NewChainDetector');
+  constructor(id: string = '') {
+    super('NewChainDetector', id);
   }
 
   async detect(): Promise<any[]> {

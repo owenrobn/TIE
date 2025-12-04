@@ -2,8 +2,8 @@
 import { Detector } from './Detector';
 
 export class BridgeEventDetector extends Detector {
-  constructor() {
-    super('BridgeEventDetector');
+  constructor(id: string = '') {
+    super('BridgeEventDetector', id);
   }
 
   async detect(): Promise<any[]> {

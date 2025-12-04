@@ -2,8 +2,8 @@
 import { Detector } from './Detector';
 
 export class LiquidityImbalanceDetector extends Detector {
-  constructor() {
-    super('LiquidityImbalanceDetector');
+  constructor(id: string = '') {
+    super('LiquidityImbalanceDetector', id);
   }
 
   async detect(): Promise<any[]> {

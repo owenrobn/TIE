@@ -2,8 +2,8 @@
 import { Detector } from './Detector';
 
 export class OracleLagDetector extends Detector {
-  constructor() {
-    super('OracleLagDetector');
+  constructor(id: string = '') {
+    super('OracleLagDetector', id);
   }
 
   async detect(): Promise<any[]> {

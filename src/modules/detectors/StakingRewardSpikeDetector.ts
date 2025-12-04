@@ -2,8 +2,8 @@
 import { Detector } from './Detector';
 
 export class StakingRewardSpikeDetector extends Detector {
-  constructor() {
-    super('StakingRewardSpikeDetector');
+  constructor(id: string = '') {
+    super('StakingRewardSpikeDetector', id);
   }
 
   async detect(): Promise<any[]> {

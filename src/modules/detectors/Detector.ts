@@ -1,10 +1,12 @@
 // Detector.ts
 export abstract class Detector {
+  id: string; // Added for database persistence
   name: string;
   enabled: boolean;
   lastRun: Date | null;
 
-  constructor(name: string) {
+  constructor(name: string, id: string = '') { // id is optional for new detectors
+    this.id = id;
     this.name = name;
     this.enabled = true;
     this.lastRun = null;

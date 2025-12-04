@@ -2,8 +2,8 @@
 import { Detector } from './Detector';
 
 export class GovernanceActivityDetector extends Detector {
-  constructor() {
-    super('GovernanceActivityDetector');
+  constructor(id: string = '') {
+    super('GovernanceActivityDetector', id);
   }
 
   async detect(): Promise<any[]> {

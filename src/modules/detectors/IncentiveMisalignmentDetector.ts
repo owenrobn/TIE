@@ -2,8 +2,8 @@
 import { Detector } from './Detector';
 
 export class IncentiveMisalignmentDetector extends Detector {
-  constructor() {
-    super('IncentiveMisalignmentDetector');
+  constructor(id: string = '') {
+    super('IncentiveMisalignmentDetector', id);
   }
 
   async detect(): Promise<any[]> {

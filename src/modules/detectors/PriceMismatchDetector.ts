@@ -2,8 +2,8 @@
 import { Detector } from './Detector';
 
 export class PriceMismatchDetector extends Detector {
-  constructor() {
-    super('PriceMismatchDetector');
+  constructor(id: string = '') {
+    super('PriceMismatchDetector', id);
   }
 
   async detect(): Promise<any[]> {
