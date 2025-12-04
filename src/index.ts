@@ -11,11 +11,9 @@ const databaseService = new DatabaseService();
 
 // Initialize TIE Engine, TAEEngine, and AutomationEngine
 const tieEngine = new TIEEngine(databaseService);
-const taeEngine = new TAEEngine();
-
-// Mock EVMAdapter for AutomationEngine constructor
+const taeEngine = new TAEEngine(databaseService); // Pass DatabaseService
 const mockEVMAdapter = new EVMAdapter('http://localhost:8545', '31337');
-const automationEngine = new AutomationEngine(tieEngine, mockEVMAdapter);
+const automationEngine = new AutomationEngine(tieEngine, mockEVMAdapter, databaseService); // Pass DatabaseService
 
 // Handle graceful shutdown
 process.on('SIGTERM', async () => {

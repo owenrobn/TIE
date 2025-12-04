@@ -1,5 +1,6 @@
 // WalletManager.ts
 import { v4 as uuidv4 } from 'uuid';
+import { DatabaseService } from '../../storage/DatabaseService'; // Import DatabaseService
 
 interface Wallet {
   id: string;
@@ -15,38 +16,32 @@ interface Wallet {
 
 export class WalletManager {
   private wallets: Wallet[];
+  private databaseService: DatabaseService; // Inject DatabaseService
 
-  constructor() {
-    this.wallets = [
-      {
-        id: uuidv4(),
-        address: '0xWallet1Address', // Mock address
-        privateKey: '0xMockPrivateKey1', // Mock private key
-        persona: { name: 'Explorer', behaviorProfile: 'normal', chains: ['Ethereum Sepolia', 'Arbitrum Nitro'] },
-        lastUsed: null,
-      },
-      {
-        id: uuidv4(),
-        address: '0xWallet2Address', // Mock address
-        privateKey: '0xMockPrivateKey2', // Mock private key
-        persona: { name: 'Hunter', behaviorProfile: 'aggressive', chains: ['Optimism Goerli', 'Base Goerli'] },
-        lastUsed: null,
-      },
-      {
-        id: uuidv4(),
-        address: '0xWallet3Address', // Mock address
-        privateKey: '0xMockPrivateKey3', // Mock private key
-        persona: { name: 'Farmer', behaviorProfile: 'passive', chains: ['Ethereum Sepolia', 'Polygon Mumbai'] },
-        lastUsed: null,
-      },
-    ];
+  constructor(databaseService: DatabaseService) {
+    this.databaseService = databaseService; // Assign DatabaseService
+    this.wallets = []; // Initialize empty, will load from DB
   }
 
-  getWallets(): Wallet[] {
+  async loadWallets(): Promise<void> {
+    const storedWallets = await this.databaseService.getWallets();
+    this.wallets = storedWallets.map(w => ({
+      id: w.id,
+      address: w.address,
+      privateKey: w.private_key,
+      persona: w.persona,
+      lastUsed: w.last_used ? new Date(w.last_used) : null,
+    }));
+    console.log(`Loaded ${this.wallets.length} wallets from database.`);
+  }
+
+  async getWallets(): Promise<Wallet[]> {
+    await this.loadWallets(); // Ensure wallets are fresh
     return this.wallets;
   }
 
-  selectWallet(signal: any): Wallet | null {
+  async selectWallet(signal: any): Promise<Wallet | null> {
+    await this.loadWallets(); // Ensure wallets are fresh
     // Simple selection logic: find an available wallet that supports the signal's chain
     // and hasn't been used recently, prioritizing less recently used wallets.
     const availableWallets = this.wallets.filter(w => w.persona.chains.includes(signal.chain));
@@ -60,24 +55,39 @@ export class WalletManager {
 
     const selectedWallet = availableWallets[0];
     selectedWallet.lastUsed = new Date(); // Update last used time
+    
+    // Persist the lastUsed update
+    await this.databaseService.updateWallet(selectedWallet.id, {
+      last_used: selectedWallet.lastUsed
+    });
+
     return selectedWallet;
   }
 
-  addWallet(address: string, privateKey: string, persona: Wallet['persona']): Wallet {
-    const newWallet: Wallet = {
-      id: uuidv4(),
+  async addWallet(address: string, privateKey: string, persona: Wallet['persona']): Promise<Wallet> {
+    const newWalletRecord = await this.databaseService.saveWallet({
       address,
-      privateKey,
+      private_key: privateKey,
       persona,
-      lastUsed: null,
+      last_used: null,
+    });
+    const newWallet: Wallet = {
+      id: newWalletRecord.id,
+      address: newWalletRecord.address,
+      privateKey: newWalletRecord.private_key,
+      persona: newWalletRecord.persona,
+      lastUsed: newWalletRecord.last_used ? new Date(newWalletRecord.last_used) : null,
     };
-    this.wallets.push(newWallet);
+    this.wallets.push(newWallet); // Update in-memory cache
     return newWallet;
   }
 
-  removeWallet(id: string): boolean {
-    const initialLength = this.wallets.length;
-    this.wallets = this.wallets.filter(wallet => wallet.id !== id);
-    return this.wallets.length < initialLength;
+  async removeWallet(id: string): Promise<boolean> {
+    const success = await this.databaseService.deleteWallet(id);
+    if (success) {
+      this.wallets = this.wallets.filter(wallet => wallet.id !== id); // Update in-memory cache
+      console.log(`Removed wallet configuration: ${id}`);
+    }
+    return success;
   }
 }

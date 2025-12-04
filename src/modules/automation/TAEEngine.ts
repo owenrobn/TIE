@@ -7,6 +7,7 @@ import { InteractionEngine } from './InteractionEngine';
 import { RewardTracker } from './RewardTracker';
 import { ExecutionQueue } from './ExecutionQueue';
 import { ReportingEngine } from './ReportingEngine';
+import { DatabaseService } from '../../storage/DatabaseService'; // Import DatabaseService
 
 export class TAEEngine {
   private signalReceiver: SignalReceiver;
@@ -18,12 +19,14 @@ export class TAEEngine {
   private executionQueue: ExecutionQueue;
   private reportingEngine: ReportingEngine;
   private running: boolean;
+  private databaseService: DatabaseService; // Inject DatabaseService
 
-  constructor() {
+  constructor(databaseService: DatabaseService) {
+    this.databaseService = databaseService; // Assign DatabaseService
     // Initialize components with mock data/configs for now
     this.signalReceiver = new SignalReceiver('your-tie-secret-key');
     this.decisionEngine = new DecisionEngine();
-    this.walletManager = new WalletManager();
+    this.walletManager = new WalletManager(this.databaseService); // Pass DatabaseService
     this.antiSybilEngine = new AntiSybilEngine();
     this.interactionEngine = new InteractionEngine(); // Will need EVMAdapter later
     this.rewardTracker = new RewardTracker();
@@ -40,6 +43,7 @@ export class TAEEngine {
 
     this.running = true;
     console.log('Starting Testnet Automation Engine...');
+    await this.walletManager.loadWallets(); // Load wallets on startup
 
     // Start processing signals from the queue
     this.processQueue();
@@ -93,7 +97,7 @@ export class TAEEngine {
   }
 
   private async executeSignal(signal: any): Promise<void> {
-    const wallet = this.walletManager.selectWallet(signal); // Select a wallet based on signal
+    const wallet = await this.walletManager.selectWallet(signal); // Select a wallet based on signal
     if (!wallet) {
       console.error(`No suitable wallet found for signal ${signal.signal_id}`);
       this.executionQueue.addFailed(signal, 'No suitable wallet');
@@ -114,7 +118,7 @@ export class TAEEngine {
       );
 
       this.rewardTracker.recordExecution(signal.signal_id, wallet.address, executionResult);
-      this.reportingEngine.reportExecution(signal.signal_id, wallet.address, { success: false, error: error.message });
+      this.reportingEngine.reportExecution(signal.signal_id, wallet.address, executionResult); // Pass full result
       console.log(`Signal ${signal.signal_id} executed successfully.`);
     } catch (error: any) {
       console.error(`Execution failed for signal ${signal.signal_id}:`, error);
@@ -127,7 +131,7 @@ export class TAEEngine {
     return {
       running: this.running,
       queueSize: this.executionQueue.size(),
-      walletsActive: this.walletManager.getWallets().length,
+      walletsActive: this.walletManager.getWallets().length, // This will trigger loadWallets
       lastSignalReceived: this.signalReceiver.getLastSignalTimestamp(),
       lastExecution: this.rewardTracker.getLastExecutionTimestamp(),
     };
@@ -144,15 +148,15 @@ export class TAEEngine {
   }
 
   // New methods for wallet management
-  getWallets(): any[] {
+  async getWallets(): Promise<any[]> {
     return this.walletManager.getWallets();
   }
 
-  addWallet(address: string, privateKey: string, persona: any): any {
+  async addWallet(address: string, privateKey: string, persona: any): Promise<any> {
     return this.walletManager.addWallet(address, privateKey, persona);
   }
 
-  removeWallet(id: string): boolean {
+  async removeWallet(id: string): Promise<boolean> {
     return this.walletManager.removeWallet(id);
   }
 }

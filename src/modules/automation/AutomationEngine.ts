@@ -2,7 +2,7 @@
 import { TIEEngine } from '../engine/TIEEngine';
 import { EVMAdapter } from '../adapters/EVMAdapter';
 import { SimulationEngine } from '../simulation/SimulationEngine';
-import { v4 as uuidv4 } from 'uuid'; // Import uuid for unique IDs
+import { DatabaseService } from '../../storage/DatabaseService'; // Import DatabaseService
 
 interface AutomationRule {
   id: string;
@@ -20,60 +20,30 @@ export class AutomationEngine {
   private tieEngine: TIEEngine;
   private evmAdapter: EVMAdapter;
   private simulationEngine: SimulationEngine;
+  private databaseService: DatabaseService; // Inject DatabaseService
   private running: boolean;
-  private automationRules: AutomationRule[];
+  private automationRules: AutomationRule[]; // Will be loaded from DB
 
-  constructor(tieEngine: TIEEngine, evmAdapter: EVMAdapter) {
+  constructor(tieEngine: TIEEngine, evmAdapter: EVMAdapter, databaseService: DatabaseService) {
     this.tieEngine = tieEngine;
     this.evmAdapter = evmAdapter;
     this.simulationEngine = new SimulationEngine();
+    this.databaseService = databaseService; // Assign DatabaseService
     this.running = false;
-    this.automationRules = [
-      {
-        id: uuidv4(),
-        name: 'Auto Claim Rewards',
-        description: 'Automatically claim staking rewards when above threshold',
-        enabled: true,
-        conditions: {
-          minScore: 80,
-          type: 'Staking Reward Spike'
-        },
-        status: 'active'
-      },
-      {
-        id: uuidv4(),
-        name: 'Auto Participate Governance',
-        description: 'Automatically participate in governance proposals',
-        enabled: false,
-        conditions: {
-          minScore: 70,
-          type: 'Governance Activity'
-        },
-        status: 'inactive'
-      },
-      {
-        id: uuidv4(),
-        name: 'Auto Bridge Assets',
-        description: 'Automatically bridge assets for cross-chain opportunities',
-        enabled: false,
-        conditions: {
-          minScore: 75,
-          type: 'Bridge Event'
-        },
-        status: 'inactive'
-      },
-      {
-        id: uuidv4(),
-        name: 'Auto Liquidity Provision',
-        description: 'Automatically provide liquidity for new pools',
-        enabled: true,
-        conditions: {
-          minScore: 85,
-          type: 'Liquidity Event'
-        },
-        status: 'active'
-      }
-    ];
+    this.automationRules = []; // Initialize empty, will load from DB
+  }
+
+  private async loadAutomationRules(): Promise<void> {
+    const storedRules = await this.databaseService.getAutomationRules();
+    this.automationRules = storedRules.map(rule => ({
+      id: rule.id,
+      name: rule.name,
+      description: rule.description,
+      enabled: rule.enabled,
+      conditions: rule.conditions,
+      status: rule.status as 'active' | 'inactive'
+    }));
+    console.log(`Loaded ${this.automationRules.length} automation rules from database.`);
   }
 
   async start(): Promise<void> {
@@ -84,6 +54,7 @@ export class AutomationEngine {
 
     this.running = true;
     console.log('Starting Automation Engine...');
+    await this.loadAutomationRules(); // Load rules on startup
 
     // Start listening for signals
     this.listenForSignals();
@@ -190,21 +161,21 @@ export class AutomationEngine {
       await new Promise(resolve => setTimeout(resolve, 1500));
 
       // Different automation actions based on rule type
-      switch (rule.id) {
-        case 'auto-claim-rewards':
+      switch (rule.conditions.type) { // Use rule.conditions.type for action logic
+        case 'Staking Reward Spike':
           await this.claimStakingRewards(signal);
           break;
-        case 'auto-participate-governance':
+        case 'Governance Activity':
           await this.participateInGovernance(signal);
           break;
-        case 'auto-bridge-assets':
+        case 'Bridge Event':
           await this.bridgeAssets(signal);
           break;
-        case 'auto-liquidity-provision':
+        case 'Liquidity Event':
           await this.provideLiquidity(signal);
           break;
         default:
-          console.log('Unknown automation rule, skipping execution');
+          console.log('Unknown automation rule type, skipping execution');
       }
 
       console.log(`Automation executed successfully for rule: ${rule.name}`);
@@ -262,58 +233,89 @@ export class AutomationEngine {
     console.log('Liquidity provided successfully');
   }
 
-  getAutomationRules(): AutomationRule[] {
+  async getAutomationRules(): Promise<AutomationRule[]> {
+    await this.loadAutomationRules(); // Ensure rules are fresh
     return this.automationRules;
   }
 
-  getAutomationRuleById(ruleId: string): AutomationRule | undefined {
+  async getAutomationRuleById(ruleId: string): Promise<AutomationRule | undefined> {
+    await this.loadAutomationRules();
     return this.automationRules.find(r => r.id === ruleId);
   }
 
-  addRule(newRule: Omit<AutomationRule, 'id' | 'status'>): AutomationRule {
-    const rule: AutomationRule = {
-      id: uuidv4(),
-      ...newRule,
+  async addRule(newRule: Omit<AutomationRule, 'id' | 'status'>): Promise<AutomationRule> {
+    const ruleRecord = await this.databaseService.saveAutomationRule({
+      name: newRule.name,
+      description: newRule.description,
+      enabled: newRule.enabled,
+      conditions: newRule.conditions,
       status: newRule.enabled ? 'active' : 'inactive'
+    });
+    const addedRule: AutomationRule = {
+      id: ruleRecord.id,
+      name: ruleRecord.name,
+      description: ruleRecord.description,
+      enabled: ruleRecord.enabled,
+      conditions: ruleRecord.conditions,
+      status: ruleRecord.status as 'active' | 'inactive'
     };
-    this.automationRules.push(rule);
-    console.log(`Automation rule ${rule.name} added.`);
-    return rule;
+    this.automationRules.push(addedRule); // Update in-memory cache
+    console.log(`Automation rule ${addedRule.name} added.`);
+    return addedRule;
   }
 
-  updateRule(ruleId: string, updates: Partial<Omit<AutomationRule, 'id'>>): AutomationRule | undefined {
-    const ruleIndex = this.automationRules.findIndex(r => r.id === ruleId);
-    if (ruleIndex !== -1) {
-      const updatedRule = {
-        ...this.automationRules[ruleIndex],
-        ...updates,
-        status: updates.enabled !== undefined ? (updates.enabled ? 'active' : 'inactive') : this.automationRules[ruleIndex].status
+  async updateRule(ruleId: string, updates: Partial<Omit<AutomationRule, 'id'>>): Promise<AutomationRule | undefined> {
+    const updatedRecord = await this.databaseService.updateAutomationRule(ruleId, {
+      name: updates.name,
+      description: updates.description,
+      enabled: updates.enabled,
+      conditions: updates.conditions,
+      status: updates.enabled !== undefined ? (updates.enabled ? 'active' : 'inactive') : undefined
+    });
+
+    if (updatedRecord) {
+      const updatedRule: AutomationRule = {
+        id: updatedRecord.id,
+        name: updatedRecord.name,
+        description: updatedRecord.description,
+        enabled: updatedRecord.enabled,
+        conditions: updatedRecord.conditions,
+        status: updatedRecord.status as 'active' | 'inactive'
       };
-      this.automationRules[ruleIndex] = updatedRule;
+      const index = this.automationRules.findIndex(r => r.id === ruleId);
+      if (index !== -1) {
+        this.automationRules[index] = updatedRule; // Update in-memory cache
+      }
       console.log(`Automation rule ${ruleId} updated`);
       return updatedRule;
     }
     return undefined;
   }
 
-  toggleRule(ruleId: string): AutomationRule | undefined {
+  async toggleRule(ruleId: string): Promise<AutomationRule | undefined> {
     const rule = this.automationRules.find(r => r.id === ruleId);
     if (rule) {
-      rule.enabled = !rule.enabled;
-      rule.status = rule.enabled ? 'active' : 'inactive';
-      console.log(`Automation rule ${rule.name} is now ${rule.enabled ? 'enabled' : 'disabled'}`);
-      return rule;
+      const newEnabledState = !rule.enabled;
+      const updatedRecord = await this.databaseService.updateAutomationRule(ruleId, {
+        enabled: newEnabledState,
+        status: newEnabledState ? 'active' : 'inactive'
+      });
+      if (updatedRecord) {
+        rule.enabled = newEnabledState;
+        rule.status = newEnabledState ? 'active' : 'inactive';
+        console.log(`Automation rule ${rule.name} is now ${rule.enabled ? 'enabled' : 'disabled'}`);
+        return rule;
+      }
     }
     return undefined;
   }
 
-  deleteRule(ruleId: string): boolean {
-    const initialLength = this.automationRules.length;
-    this.automationRules = this.automationRules.filter(r => r.id !== ruleId);
-    if (this.automationRules.length < initialLength) {
+  async deleteRule(ruleId: string): Promise<boolean> {
+    const success = await this.databaseService.deleteAutomationRule(ruleId);
+    if (success) {
+      this.automationRules = this.automationRules.filter(r => r.id !== ruleId); // Update in-memory cache
       console.log(`Automation rule ${ruleId} deleted.`);
-      return true;
     }
-    return false;
+    return success;
   }
 }

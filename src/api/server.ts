@@ -22,11 +22,11 @@ const databaseService = new DatabaseService();
 const tieEngine = new TIEEngine(databaseService); // Pass DatabaseService to TIEEngine
 const faucetManager = new TestnetFaucetManager();
 const devnetDeployer = new DevnetDeployer();
-const taeEngine = new TAEEngine();
+const taeEngine = new TAEEngine(databaseService); // Pass DatabaseService to TAEEngine
 
 // Mock EVMAdapter for AutomationEngine constructor
 const mockEVMAdapter = new EVMAdapter('http://localhost:8545', '31337');
-const automationEngine = new AutomationEngine(tieEngine, mockEVMAdapter);
+const automationEngine = new AutomationEngine(tieEngine, mockEVMAdapter, databaseService); // Pass DatabaseService to AutomationEngine
 
 // Routes
 app.get('/api/health', (req: Request, res: Response) => {
@@ -152,8 +152,8 @@ app.post('/api/tae/signal', async (req: Request, res: Response) => {
   }
 });
 
-app.get('/api/tae/status', (req: Request, res: Response) => {
-  const status = taeEngine.getEngineStatus();
+app.get('/api/tae/status', async (req: Request, res: Response) => {
+  const status = await taeEngine.getEngineStatus(); // Await getEngineStatus
   res.json(status);
 });
 
@@ -168,28 +168,28 @@ app.post('/api/tae/execute/:signalId', (req: Request, res: Response) => {
 });
 
 // TAE Wallet Management Routes
-app.get('/api/tae/wallets', (req: Request, res: Response) => {
-  const wallets = taeEngine.getWallets();
+app.get('/api/tae/wallets', async (req: Request, res: Response) => {
+  const wallets = await taeEngine.getWallets(); // Await getWallets
   res.json(wallets);
 });
 
-app.post('/api/tae/wallets', (req: Request, res: Response) => {
+app.post('/api/tae/wallets', async (req: Request, res: Response) => {
   const { address, privateKey, persona } = req.body;
   if (!address || !privateKey || !persona) {
     return res.status(400).json({ success: false, message: 'Address, private key, and persona are required.' });
   }
   try {
-    const newWallet = taeEngine.addWallet(address, privateKey, persona);
+    const newWallet = await taeEngine.addWallet(address, privateKey, persona); // Await addWallet
     res.status(201).json({ success: true, message: 'Wallet added successfully.', wallet: newWallet });
   } catch (error: any) {
     res.status(500).json({ success: false, message: error.message || 'Failed to add wallet.' });
   }
 });
 
-app.delete('/api/tae/wallets/:id', (req: Request, res: Response) => {
+app.delete('/api/tae/wallets/:id', async (req: Request, res: Response) => {
   const { id } = req.params;
   try {
-    const success = taeEngine.removeWallet(id);
+    const success = await taeEngine.removeWallet(id); // Await removeWallet
     if (success) {
       res.json({ success: true, message: `Wallet ${id} removed successfully.` });
     } else {
@@ -201,29 +201,29 @@ app.delete('/api/tae/wallets/:id', (req: Request, res: Response) => {
 });
 
 // Automation Rules API Routes
-app.get('/api/automation/rules', (req: Request, res: Response) => {
-  const rules = automationEngine.getAutomationRules();
+app.get('/api/automation/rules', async (req: Request, res: Response) => {
+  const rules = await automationEngine.getAutomationRules(); // Await getAutomationRules
   res.json(rules);
 });
 
-app.post('/api/automation/rules', (req: Request, res: Response) => {
+app.post('/api/automation/rules', async (req: Request, res: Response) => {
   const { name, description, enabled, conditions } = req.body;
   if (!name || !description || conditions === undefined) {
     return res.status(400).json({ success: false, message: 'Name, description, and conditions are required.' });
   }
   try {
-    const newRule = automationEngine.addRule({ name, description, enabled: enabled ?? false, conditions });
+    const newRule = await automationEngine.addRule({ name, description, enabled: enabled ?? false, conditions }); // Await addRule
     res.status(201).json({ success: true, message: 'Automation rule added successfully.', rule: newRule });
   } catch (error: any) {
     res.status(500).json({ success: false, message: error.message || 'Failed to add automation rule.' });
   }
 });
 
-app.put('/api/automation/rules/:id', (req: Request, res: Response) => {
+app.put('/api/automation/rules/:id', async (req: Request, res: Response) => {
   const { id } = req.params;
   const updates = req.body;
   try {
-    const updatedRule = automationEngine.updateRule(id, updates);
+    const updatedRule = await automationEngine.updateRule(id, updates); // Await updateRule
     if (updatedRule) {
       res.json({ success: true, message: `Automation rule ${id} updated successfully.`, rule: updatedRule });
     } else {
@@ -234,10 +234,10 @@ app.put('/api/automation/rules/:id', (req: Request, res: Response) => {
   }
 });
 
-app.post('/api/automation/rules/:id/toggle', (req: Request, res: Response) => {
+app.post('/api/automation/rules/:id/toggle', async (req: Request, res: Response) => {
   const { id } = req.params;
   try {
-    const toggledRule = automationEngine.toggleRule(id);
+    const toggledRule = await automationEngine.toggleRule(id); // Await toggleRule
     if (toggledRule) {
       res.json({ success: true, message: `Automation rule ${id} toggled successfully.`, rule: toggledRule });
     } else {
@@ -248,10 +248,10 @@ app.post('/api/automation/rules/:id/toggle', (req: Request, res: Response) => {
   }
 });
 
-app.delete('/api/automation/rules/:id', (req: Request, res: Response) => {
+app.delete('/api/automation/rules/:id', async (req: Request, res: Response) => {
   const { id } = req.params;
   try {
-    const success = automationEngine.deleteRule(id);
+    const success = await automationEngine.deleteRule(id); // Await deleteRule
     if (success) {
       res.json({ success: true, message: `Automation rule ${id} deleted successfully.` });
     } else {
