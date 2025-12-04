@@ -26,10 +26,8 @@ async function runMigrations() {
 
     for (const file of migrationFiles) {
       console.log(`Running migration: ${file}`);
-      
       const sql = fs.readFileSync(path.join(migrationsDir, file), 'utf8');
       await client.query(sql);
-      
       console.log(`Completed migration: ${file}`);
     }
 

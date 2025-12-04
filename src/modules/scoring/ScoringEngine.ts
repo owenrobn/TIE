@@ -23,7 +23,7 @@ export class ScoringEngine {
     // Ensure score is between 0 and 100
     return Math.max(0, Math.min(100, Math.round(score)));
   }
-  
+
   calculateUrgency(signal: any): number {
     // Calculate urgency based on various factors
     const now = new Date();
@@ -38,7 +38,7 @@ export class ScoringEngine {
     if (timeDiffHours < 24) return 0.2;
     return 0.1;
   }
-  
+
   calculateSybilRisk(signal: any): number {
     // Calculate sybil risk based on various factors
     // In a real implementation, this would analyze behavioral patterns

@@ -16,7 +16,7 @@ export abstract class Detector {
     if (!this.enabled) {
       return [];
     }
-
+    
     this.lastRun = new Date();
     return await this.detect();
   }

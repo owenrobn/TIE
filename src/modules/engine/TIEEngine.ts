@@ -34,21 +34,32 @@ export class TIEEngine {
     this.contractFingerprinter = new ContractFingerprinter();
     this.chainAdapters = new Map();
     this.running = false;
-    
+
     // Initialize chain adapters
     this.initializeChainAdapters();
   }
 
   private initializeChainAdapters(): void {
     // Initialize adapters for different chains
-    this.chainAdapters.set('ethereum-sepolia', 
-      new EVMAdapter('https://eth-sepolia.g.alchemy.com/v2/your-api-key', 'ethereum-sepolia'));
-    this.chainAdapters.set('arbitrum-sepolia', 
-      new EVMAdapter('https://arb-sepolia.g.alchemy.com/v2/your-api-key', 'arbitrum-sepolia'));
-    this.chainAdapters.set('optimism-sepolia', 
-      new EVMAdapter('https://opt-sepolia.g.alchemy.com/v2/your-api-key', 'optimism-sepolia'));
-    this.chainAdapters.set('base-sepolia', 
-      new EVMAdapter('https://base-sepolia.g.alchemy.com/v2/your-api-key', 'base-sepolia'));
+    this.chainAdapters.set('ethereum-sepolia', new EVMAdapter(
+      'https://eth-sepolia.g.alchemy.com/v2/your-api-key',
+      'ethereum-sepolia'
+    ));
+    
+    this.chainAdapters.set('arbitrum-sepolia', new EVMAdapter(
+      'https://arb-sepolia.g.alchemy.com/v2/your-api-key',
+      'arbitrum-sepolia'
+    ));
+    
+    this.chainAdapters.set('optimism-sepolia', new EVMAdapter(
+      'https://opt-sepolia.g.alchemy.com/v2/your-api-key',
+      'optimism-sepolia'
+    ));
+    
+    this.chainAdapters.set('base-sepolia', new EVMAdapter(
+      'https://base-sepolia.g.alchemy.com/v2/your-api-key',
+      'base-sepolia'
+    ));
   }
 
   async start(): Promise<void> {
@@ -56,10 +67,10 @@ export class TIEEngine {
       console.log('TIE Engine is already running');
       return;
     }
-    
+
     this.running = true;
     console.log('Starting TIE Engine...');
-    
+
     // Start all detectors
     for (const detector of this.detectors) {
       this.runDetector(detector);
@@ -94,25 +105,25 @@ export class TIEEngine {
 
   private async processDetection(detection: any, detectorName: string): Promise<void> {
     console.log(`Processing detection from ${detectorName}:`, detection);
-    
+
     // Step 1: Fingerprint the contract (if applicable)
     let fingerprint = null;
     if (detection.address || detection.contract) {
       const address = detection.address || detection.contract;
       // In a real implementation, we would fetch bytecode and ABI
       fingerprint = await this.contractFingerprinter.fingerprintContract(
-        address, 
+        address,
         '', // bytecode
         {}  // abi
       );
     }
-    
+
     // Step 2: Simulate interaction (if applicable)
     let simulation = null;
     if (detection.transaction) {
       simulation = await this.simulationEngine.simulate(detection.transaction);
     }
-    
+
     // Step 3: Calculate score
     const signal = {
       ...detection,
@@ -121,7 +132,7 @@ export class TIEEngine {
       simulation,
       timestamp: new Date().toISOString()
     };
-    
+
     const score = this.scoringEngine.calculateScore({
       reward_depth: detection.confidence || 0.5,
       urgency: this.scoringEngine.calculateUrgency(signal),
@@ -129,10 +140,10 @@ export class TIEEngine {
       sybil_risk: this.scoringEngine.calculateSybilRisk(signal),
       capital_requirement: 0.2 // Default value
     });
-    
+
     // Add score to signal
     signal.score = score;
-    
+
     // Step 4: Dispatch signal if score is above threshold
     if (score > 50) {
       try {

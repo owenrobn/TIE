@@ -7,14 +7,24 @@ CREATE TABLE IF NOT EXISTS signals (
     simulation JSONB,
     score JSONB,
     status VARCHAR(50) DEFAULT 'new',
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
--- Create index on chain and type for faster lookups
-CREATE INDEX IF NOT EXISTS idx_signals_chain_type ON signals(chain, type);
-
--- Create index on status for faster filtering
+-- Create indexes for performance
+CREATE INDEX IF NOT EXISTS idx_signals_chain ON signals(chain);
+CREATE INDEX IF NOT EXISTS idx_signals_type ON signals(type);
 CREATE INDEX IF NOT EXISTS idx_signals_status ON signals(status);
-
--- Create index on created_at for time-based queries
 CREATE INDEX IF NOT EXISTS idx_signals_created_at ON signals(created_at);
+
+-- Add comments for documentation
+COMMENT ON TABLE signals IS 'Stores detected opportunities and their analysis results';
+COMMENT ON COLUMN signals.id IS 'Unique identifier for the signal';
+COMMENT ON COLUMN signals.chain IS 'Blockchain network where the opportunity was detected';
+COMMENT ON COLUMN signals.type IS 'Type of opportunity (New Contract, Staking Reward, etc.)';
+COMMENT ON COLUMN signals.context IS 'Detailed context information about the opportunity';
+COMMENT ON COLUMN signals.simulation IS 'Simulation results for the opportunity';
+COMMENT ON COLUMN signals.score IS 'Scoring details and final score';
+COMMENT ON COLUMN signals.status IS 'Current status of the signal (new, reviewed, executed, etc.)';
+COMMENT ON COLUMN signals.created_at IS 'Timestamp when the signal was created';
+COMMENT ON COLUMN signals.updated_at IS 'Timestamp when the signal was last updated';

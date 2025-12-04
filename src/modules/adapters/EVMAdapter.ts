@@ -48,9 +48,9 @@ export class EVMAdapter extends ChainAdapter {
     console.log(`Fetching gas data on ${this.chainId}`);
     // In a real implementation, this would make an RPC call
     return {
-      gasPrice: "20000000000", // 20 Gwei
-      baseFee: "15000000000",  // 15 Gwei
-      priorityFee: "5000000000" // 5 Gwei
+      gasPrice: "20000000000",    // 20 Gwei
+      baseFee: "15000000000",      // 15 Gwei
+      priorityFee: "5000000000"    // 5 Gwei
     };
   }
 

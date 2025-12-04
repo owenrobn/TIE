@@ -20,7 +20,7 @@ export class ContractFingerprinter {
       riskScore: Math.random()
     };
   }
-  
+
   private classifyContract(abi: any): string {
     // Simple contract classification based on ABI
     if (!abi || !Array.isArray(abi)) return 'Unknown';

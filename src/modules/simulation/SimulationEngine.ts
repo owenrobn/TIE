@@ -38,7 +38,10 @@ export class SimulationEngine {
       this.activeSimulations++;
       try {
         const result = await this.simulate(tx);
-        results.push({ transaction: tx, result });
+        results.push({
+          transaction: tx,
+          result
+        });
       } finally {
         this.activeSimulations--;
       }

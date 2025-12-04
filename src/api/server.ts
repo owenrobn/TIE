@@ -13,7 +13,10 @@ const tieEngine = new TIEEngine();
 
 // Routes
 app.get('/api/health', (req: Request, res: Response) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+  res.json({
+    status: 'ok',
+    timestamp: new Date().toISOString()
+  });
 });
 
 app.get('/api/detectors/status', (req: Request, res: Response) => {
@@ -24,7 +27,10 @@ app.get('/api/detectors/status', (req: Request, res: Response) => {
 app.post('/api/detectors/:name/toggle', (req: Request, res: Response) => {
   const { name } = req.params;
   tieEngine.toggleDetector(name);
-  res.json({ success: true, message: `Toggled detector ${name}` });
+  res.json({
+    success: true,
+    message: `Toggled detector ${name}`
+  });
 });
 
 app.get('/api/signals', (req: Request, res: Response) => {
@@ -42,6 +48,7 @@ app.get('/api/signals', (req: Request, res: Response) => {
       detector: 'NewContractDeploymentDetector'
     }
   ];
+  
   res.json(signals);
 });
 
