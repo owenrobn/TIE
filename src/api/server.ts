@@ -321,18 +321,23 @@ app.delete('/api/automation/rules/:id', async (req: Request, res: Response) => {
 // Connect to the database before starting TIEEngine
 databaseService.connect().then(async () => {
   console.log('Database connected successfully. Initializing engines...');
-  await automationEngine.initialize(); // Initialize AutomationEngine to load rules
-  await tieEngine.start();
-  await taeEngine.start();
-  console.log('All engines initialized.');
+  try {
+    await automationEngine.initialize(); // Initialize AutomationEngine to load rules
+    await tieEngine.start();
+    await taeEngine.start();
+    console.log('All engines initialized.');
 
-  // Start the server only after engines are initialized
-  app.listen(port, () => {
-    console.log(`TIE API server running at http://localhost:${port}`);
-  });
+    // Start the server only after engines are initialized
+    app.listen(port, () => {
+      console.log(`TIE API server running at http://localhost:${port}`);
+    });
+  } catch (engineError) {
+    console.error('Failed to initialize one or more engines:', engineError);
+    process.exit(1); // Exit if engine initialization fails
+  }
 
 }).catch((error) => {
-  console.error('Failed to connect to database or initialize engines:', error);
+  console.error('Failed to connect to database:', error);
   process.exit(1); // Exit if critical startup fails
 });
 
