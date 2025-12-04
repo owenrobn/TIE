@@ -802,8 +802,642 @@ const Automation = () => {
   return (
     <div className="min-h-screen bg-background p-6">
       <div className="max-w-7xl mx-auto">
-        <h1 className="text-3xl font-bold text-foreground">Automation Page</h1>
-        <p className="text-muted-foreground">This is a simplified version for debugging.</p>
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-8">
+          <div>
+            <h1 className="text-3xl font-bold text-foreground">Automation</h1>
+            <p className="text-muted-foreground">Configure automated actions and manage testnet resources</p>
+          </div>
+          <div className="flex space-x-2 mt-4 md:mt-0">
+            <Button onClick={() => openRuleDialog()}>
+              <PlusCircle className="h-4 w-4 mr-2" />
+              Add Rule
+            </Button>
+            <Button onClick={() => openWalletDialog()}>
+              <PlusCircle className="h-4 w-4 mr-2" />
+              Add Wallet
+            </Button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">TAE Status</CardTitle>
+              <Bot className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">
+                {taeStatus?.running ? 'Running' : 'Stopped'}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Queue size: {taeStatus?.queueSize ?? 'N/A'}
+              </p>
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Active Rules</CardTitle>
+              <Settings className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{activeRulesCount}</div>
+              <p className="text-xs text-muted-foreground">
+                {automationRules.length - activeRulesCount} inactive
+              </p>
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Active Wallets</CardTitle>
+              <Wallet className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{wallets.length}</div>
+              <p className="text-xs text-muted-foreground">
+                Last used: {getRelativeTime(taeStatus?.lastExecution)}
+              </p>
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Last Signal</CardTitle>
+              <Zap className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">
+                {getRelativeTime(taeStatus?.lastSignalReceived)}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {taeStatus?.queueSize} signals in queue
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+          <Card>
+            <CardHeader>
+              <CardTitle>Automation Rules</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {loadingAutomationRules ? (
+                <div className="text-center text-muted-foreground">Loading automation rules...</div>
+              ) : (
+                <div className="space-y-4">
+                  {automationRules.length === 0 ? (
+                    <p className="text-center text-muted-foreground">No automation rules configured.</p>
+                  ) : (
+                    automationRules.map((rule) => (
+                      <div key={rule.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50">
+                        <div>
+                          <div className="font-medium flex items-center">
+                            {rule.name}
+                            <Badge 
+                              variant={rule.enabled ? 'default' : 'secondary'}
+                              className="ml-2"
+                            >
+                              {rule.status}
+                            </Badge>
+                          </div>
+                          <p className="text-sm text-muted-foreground mt-1">{rule.description}</p>
+                          <div className="text-xs text-muted-foreground mt-2">
+                            Min Score: {rule.conditions.minScore}, Type: {rule.conditions.type}
+                          </div>
+                        </div>
+                        <div className="flex space-x-2">
+                          <Button variant="outline" size="sm" onClick={() => openRuleDialog(rule)}>
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Switch
+                            checked={rule.enabled}
+                            onCheckedChange={() => toggleRule(rule.id)}
+                          />
+                          <Button variant="destructive" size="sm" onClick={() => deleteRule(rule.id, rule.name)}>
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Managed Wallets</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {loadingWallets ? (
+                <div className="text-center text-muted-foreground">Loading wallets...</div>
+              ) : (
+                <div className="space-y-4">
+                  {wallets.length === 0 ? (
+                    <p className="text-center text-muted-foreground">No wallets added yet.</p>
+                  ) : (
+                    wallets.map((wallet) => (
+                      <div key={wallet.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50">
+                        <div>
+                          <div className="font-medium">{wallet.persona.name} ({wallet.persona.behaviorProfile})</div>
+                          <div className="text-sm text-muted-foreground">{wallet.address.substring(0, 6)}...{wallet.address.substring(wallet.address.length - 4)}</div>
+                          <div className="text-xs text-muted-foreground mt-1">
+                            Chains: {wallet.persona.chains.join(', ')}
+                          </div>
+                          <div className="text-xs text-muted-foreground mt-1">
+                            Last Used: {getRelativeTime(wallet.lastUsed)}
+                          </div>
+                        </div>
+                        <div className="flex space-x-2">
+                          <Button variant="outline" size="sm" onClick={() => openWalletDialog(wallet)}>
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button variant="destructive" size="sm" onClick={() => handleRemoveWallet(wallet.id, wallet.address)}>
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        <Card className="mb-8">
+          <CardHeader>
+            <CardTitle>Testnet Faucets</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="mb-4">
+              <Label htmlFor="userAddress" className="mb-2 block">Your Wallet Address</Label>
+              <Input 
+                id="userAddress"
+                placeholder="0x..."
+                value={userAddress}
+                onChange={(e) => setUserAddress(e.target.value)}
+              />
+            </div>
+            {loadingFaucets ? (
+              <div className="text-center text-muted-foreground">Loading faucets...</div>
+            ) : (
+              <div className="space-y-4">
+                {faucets.length === 0 ? (
+                  <p className="text-center text-muted-foreground">No testnet faucets configured.</p>
+                ) : (
+                  faucets.map((faucet) => (
+                    <div key={faucet.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50">
+                      <div>
+                        <div className="font-medium">{faucet.name} ({faucet.token})</div>
+                        <div className="text-sm text-muted-foreground">{faucet.url}</div>
+                        <div className="text-xs text-muted-foreground mt-1">
+                          Cooldown: {formatCooldown(faucet.cooldown)}
+                        </div>
+                      </div>
+                      <Button 
+                        size="sm" 
+                        onClick={() => requestFaucetFunds(faucet.id, faucet.chainId)}
+                        disabled={requestingFunds === faucet.id}
+                      >
+                        {requestingFunds === faucet.id ? 'Requesting...' : 'Request Funds'}
+                      </Button>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+          <Card>
+            <CardHeader>
+              <CardTitle>Devnet Deployments</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {loadingDeployments ? (
+                <div className="text-center text-muted-foreground">Loading deployments...</div>
+              ) : (
+                <div className="space-y-4">
+                  {deployments.length === 0 ? (
+                    <p className="text-center text-muted-foreground">No contracts deployed yet.</p>
+                  ) : (
+                    deployments.map((deployment) => (
+                      <div key={deployment.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50">
+                        <div>
+                          <div className="font-medium">{deployment.contractName}</div>
+                          <div className="text-sm text-muted-foreground">
+                            {deployment.contractAddress.substring(0, 6)}...{deployment.contractAddress.substring(deployment.contractAddress.length - 4)} on {deployment.devnetId}
+                          </div>
+                          <div className="text-xs text-muted-foreground mt-1">
+                            Deployed by {deployment.deployer} {getRelativeTime(deployment.timestamp)}
+                          </div>
+                        </div>
+                        <Badge variant={deployment.status === 'verified' ? 'default' : deployment.status === 'failed' ? 'destructive' : 'secondary'}>
+                          {deployment.status || 'unverified'}
+                        </Badge>
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Deploy & Verify Contract</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid gap-2">
+                <Label htmlFor="deployDevnet">Devnet</Label>
+                <Select
+                  value={deployForm.devnetId}
+                  onValueChange={(value) => setDeployForm(prev => ({ ...prev, devnetId: value }))}
+                  disabled={loadingDevnets}
+                >
+                  <SelectTrigger id="deployDevnet">
+                    <SelectValue placeholder="Select a devnet" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {devnets.map(devnet => (
+                      <SelectItem key={devnet.id} value={devnet.id}>
+                        {devnet.name} ({devnet.chainId})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="contractName">Contract Name</Label>
+                <Input 
+                  id="contractName" 
+                  placeholder="MyToken" 
+                  value={deployForm.contractName}
+                  onChange={(e) => setDeployForm(prev => ({ ...prev, contractName: e.target.value }))}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="bytecode">Bytecode</Label>
+                <Textarea 
+                  id="bytecode" 
+                  placeholder="0x..." 
+                  value={deployForm.bytecode}
+                  onChange={(e) => setDeployForm(prev => ({ ...prev, bytecode: e.target.value }))}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="abi">ABI (JSON)</Label>
+                <Textarea 
+                  id="abi" 
+                  placeholder='[{"type":"constructor",...}]' 
+                  value={deployForm.abi}
+                  onChange={(e) => setDeployForm(prev => ({ ...prev, abi: e.target.value }))}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="constructorArgs">Constructor Args (JSON Array)</Label>
+                <Input 
+                  id="constructorArgs" 
+                  placeholder='["arg1", 123]' 
+                  value={deployForm.constructorArgs}
+                  onChange={(e) => setDeployForm(prev => ({ ...prev, constructorArgs: e.target.value }))}
+                />
+              </div>
+              <Button onClick={handleDeployContract} disabled={deploying}>
+                {deploying ? 'Deploying...' : 'Deploy Contract'}
+              </Button>
+
+              <div className="border-t pt-4 mt-4 space-y-4">
+                <h3 className="text-lg font-semibold">Verify Deployed Contract</h3>
+                <div className="grid gap-2">
+                  <Label htmlFor="verifyDevnet">Devnet</Label>
+                  <Select
+                    value={verifyingForm.devnetId}
+                    onValueChange={(value) => setVerifyingForm(prev => ({ ...prev, devnetId: value }))}
+                    disabled={loadingDevnets}
+                  >
+                    <SelectTrigger id="verifyDevnet">
+                      <SelectValue placeholder="Select a devnet" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {devnets.map(devnet => (
+                        <SelectItem key={devnet.id} value={devnet.id}>
+                          {devnet.name} ({devnet.chainId})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="contractAddress">Contract Address</Label>
+                  <Input 
+                    id="contractAddress" 
+                    placeholder="0x..." 
+                    value={verifyingForm.contractAddress}
+                    onChange={(e) => setVerifyingForm(prev => ({ ...prev, contractAddress: e.target.value }))}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="verifyContractName">Contract Name</Label>
+                  <Input 
+                    id="verifyContractName" 
+                    placeholder="MyToken" 
+                    value={verifyingForm.contractName}
+                    onChange={(e) => setVerifyingForm(prev => ({ ...prev, contractName: e.target.value }))}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="sourceCode">Source Code</Label>
+                  <Textarea 
+                    id="sourceCode" 
+                    placeholder="// SPDX-License-Identifier: MIT..." 
+                    value={verifyingForm.sourceCode}
+                    onChange={(e) => setVerifyingForm(prev => ({ ...prev, sourceCode: e.target.value }))}
+                  />
+                </div>
+                <Button onClick={handleVerifyContract} disabled={verifying}>
+                  {verifying ? 'Verifying...' : 'Verify Contract'}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center">
+                <History className="h-5 w-5 mr-2" />
+                Execution History
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {loadingExecutionHistory ? (
+                <div className="text-center text-muted-foreground">Loading execution history...</div>
+              ) : (
+                <div className="space-y-4">
+                  {executionHistory.length === 0 ? (
+                    <p className="text-center text-muted-foreground">No executions recorded yet.</p>
+                  ) : (
+                    executionHistory.map((exec) => (
+                      <div key={exec.signalId + exec.timestamp} className="flex items-start justify-between p-3 border rounded-lg hover:bg-gray-50">
+                        <div className="flex-1">
+                          <div className="font-medium flex items-center">
+                            Signal: {exec.signalId.substring(0, 8)}...
+                            <Badge 
+                              variant={exec.result.success ? 'default' : 'destructive'}
+                              className="ml-2"
+                            >
+                              {exec.result.success ? 'Success' : 'Failed'}
+                            </Badge>
+                          </div>
+                          <div className="text-sm text-muted-foreground mt-1">
+                            Wallet: {exec.walletAddress.substring(0, 6)}...{exec.walletAddress.substring(exec.walletAddress.length - 4)}
+                          </div>
+                          <div className="text-xs text-muted-foreground mt-2">
+                            {new Date(exec.timestamp).toLocaleString()}
+                          </div>
+                          {exec.result.txHash && (
+                            <div className="text-xs text-muted-foreground mt-1">
+                              Tx Hash: {exec.result.txHash.substring(0, 10)}...
+                            </div>
+                          )}
+                          {exec.result.error && (
+                            <div className="text-xs text-red-500 mt-1">
+                              Error: {exec.result.error}
+                            </div>
+                          )}
+                        </div>
+                        <Button size="sm" variant="outline">
+                          <ExternalLink className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center">
+                <AlertCircle className="h-5 w-5 mr-2" />
+                Failed Signals
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {loadingFailedSignals ? (
+                <div className="text-center text-muted-foreground">Loading failed signals...</div>
+              ) : (
+                <div className="space-y-4">
+                  {failedSignals.length === 0 ? (
+                    <p className="text-center text-muted-foreground">No failed signals in queue.</p>
+                  ) : (
+                    failedSignals.map((failed) => (
+                      <div key={failed.signal.signal_id} className="flex items-start justify-between p-3 border rounded-lg hover:bg-gray-50">
+                        <div className="flex-1">
+                          <div className="font-medium flex items-center">
+                            Signal: {failed.signal.signal_id.substring(0, 8)}... ({failed.signal.type})
+                            <Badge 
+                              variant="destructive"
+                              className="ml-2"
+                            >
+                              Failed
+                            </Badge>
+                          </div>
+                          <div className="text-sm text-muted-foreground mt-1">
+                            Chain: {failed.signal.chain} | Score: {failed.signal.score}
+                          </div>
+                          <div className="text-xs text-muted-foreground mt-2">
+                            Attempts: {failed.retries} | Last Attempt: {getRelativeTime(failed.lastAttempt || failed.addedAt)}
+                          </div>
+                          {failed.error && (
+                            <div className="text-xs text-red-500 mt-1">
+                              Error: {failed.error}
+                            </div>
+                          )}
+                        </div>
+                        <Button size="sm" variant="outline">
+                          Retry
+                        </Button>
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Rule Management Dialog */}
+        <Dialog open={isRuleDialogOpen} onOpenChange={setIsRuleDialogOpen}>
+          <DialogContent className="sm:max-w-[425px]">
+            <DialogHeader>
+              <DialogTitle>{editingRule ? 'Edit Automation Rule' : 'Add New Automation Rule'}</DialogTitle>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="ruleName" className="text-right">
+                  Name
+                </Label>
+                <Input
+                  id="ruleName"
+                  value={ruleForm.name}
+                  onChange={(e) => setRuleForm(prev => ({ ...prev, name: e.target.value }))}
+                  className="col-span-3"
+                />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="ruleDescription" className="text-right">
+                  Description
+                </Label>
+                <Textarea
+                  id="ruleDescription"
+                  value={ruleForm.description}
+                  onChange={(e) => setRuleForm(prev => ({ ...prev, description: e.target.value }))}
+                  className="col-span-3"
+                />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="minScore" className="text-right">
+                  Min Score
+                </Label>
+                <Input
+                  id="minScore"
+                  type="number"
+                  value={ruleForm.minScore}
+                  onChange={(e) => setRuleForm(prev => ({ ...prev, minScore: parseInt(e.target.value) }))}
+                  className="col-span-3"
+                />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="signalType" className="text-right">
+                  Signal Type
+                </Label>
+                <Select
+                  value={ruleForm.type}
+                  onValueChange={(value) => setRuleForm(prev => ({ ...prev, type: value }))}
+                >
+                  <SelectTrigger id="signalType" className="col-span-3">
+                    <SelectValue placeholder="Select signal type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {signalTypes.map(type => (
+                      <SelectItem key={type} value={type}>{type}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="ruleEnabled" className="text-right">
+                  Enabled
+                </Label>
+                <Switch
+                  id="ruleEnabled"
+                  checked={ruleForm.enabled}
+                  onCheckedChange={(checked) => setRuleForm(prev => ({ ...prev, enabled: checked }))}
+                  className="col-span-3"
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsRuleDialogOpen(false)}>Cancel</Button>
+              <Button onClick={handleSaveRule}>{editingRule ? 'Save Changes' : 'Add Rule'}</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Wallet Management Dialog */}
+        <Dialog open={isWalletDialogOpen} onOpenChange={setIsWalletDialogOpen}>
+          <DialogContent className="sm:max-w-[425px]">
+            <DialogHeader>
+              <DialogTitle>{editingWallet ? 'Edit Wallet' : 'Add New Wallet'}</DialogTitle>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="walletAddress" className="text-right">
+                  Address
+                </Label>
+                <Input
+                  id="walletAddress"
+                  value={walletForm.address}
+                  onChange={(e) => setWalletForm(prev => ({ ...prev, address: e.target.value }))}
+                  className="col-span-3"
+                />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="privateKey" className="text-right">
+                  Private Key
+                </Label>
+                <Input
+                  id="privateKey"
+                  type="password"
+                  value={walletForm.privateKey}
+                  onChange={(e) => setWalletForm(prev => ({ ...prev, privateKey: e.target.value }))}
+                  className="col-span-3"
+                />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="personaName" className="text-right">
+                  Persona Name
+                </Label>
+                <Input
+                  id="personaName"
+                  value={walletForm.personaName}
+                  onChange={(e) => setWalletForm(prev => ({ ...prev, personaName: e.target.value }))}
+                  className="col-span-3"
+                />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="behaviorProfile" className="text-right">
+                  Behavior Profile
+                </Label>
+                <Select
+                  value={walletForm.behaviorProfile}
+                  onValueChange={(value) => setWalletForm(prev => ({ ...prev, behaviorProfile: value as 'normal' | 'aggressive' | 'passive' }))}
+                >
+                  <SelectTrigger id="behaviorProfile" className="col-span-3">
+                    <SelectValue placeholder="Select profile" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="normal">Normal</SelectItem>
+                    <SelectItem value="aggressive">Aggressive</SelectItem>
+                    <SelectItem value="passive">Passive</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="chains" className="text-right">
+                  Chains
+                </Label>
+                <Select
+                  value={walletForm.chains[0]} // Only single select for simplicity
+                  onValueChange={(value) => setWalletForm(prev => ({ ...prev, chains: [value] }))}
+                >
+                  <SelectTrigger id="chains" className="col-span-3">
+                    <SelectValue placeholder="Select chain" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Ethereum Sepolia">Ethereum Sepolia</SelectItem>
+                    <SelectItem value="Arbitrum Nitro">Arbitrum Nitro</SelectItem>
+                    <SelectItem value="Optimism Goerli">Optimism Goerli</SelectItem>
+                    <SelectItem value="Base Goerli">Base Goerli</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsWalletDialogOpen(false)}>Cancel</Button>
+              <Button onClick={handleSaveWallet}>{editingWallet ? 'Save Changes' : 'Add Wallet'}</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );
