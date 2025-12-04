@@ -389,12 +389,12 @@ const Automation = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
+    <div className="min-h-screen bg-background p-6">
       <div className="max-w-7xl mx-auto">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-8">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">Automation</h1>
-            <p className="text-gray-600">Manage automated testnet and devnet operations</p>
+            <h1 className="text-3xl font-bold text-foreground">Automation</h1>
+            <p className="text-muted-foreground">Manage automated testnet and devnet operations</p>
           </div>
           <div className="flex items-center space-x-4 mt-4 md:mt-0">
             <div className="flex items-center">
@@ -432,7 +432,7 @@ const Automation = () => {
                               {rule.status}
                             </Badge>
                           </CardTitle>
-                          <p className="text-sm text-gray-500 mt-1">{rule.description}</p>
+                          <p className="text-sm text-muted-foreground mt-1">{rule.description}</p>
                         </div>
                         <Switch
                           checked={rule.enabled}
@@ -471,14 +471,14 @@ const Automation = () => {
                   />
                 </div>
                 {loadingFaucets ? (
-                  <div className="text-center text-gray-500">Loading faucets...</div>
+                  <div className="text-center text-muted-foreground">Loading faucets...</div>
                 ) : (
                   <div className="space-y-4">
                     {faucets.map((faucet) => (
                       <div key={faucet.id} className="flex items-center justify-between p-3 border rounded-lg">
                         <div>
                           <div className="font-medium">{faucet.name}</div>
-                          <div className="text-sm text-gray-500">
+                          <div className="text-sm text-muted-foreground">
                             Chain ID: {faucet.chainId} • {faucet.token} • Cooldown: {formatCooldown(faucet.cooldown)}
                           </div>
                         </div>
@@ -635,20 +635,20 @@ const Automation = () => {
               </CardHeader>
               <CardContent>
                 {loadingDeployments ? (
-                  <div className="text-center text-gray-500">Loading deployments...</div>
+                  <div className="text-center text-muted-foreground">Loading deployments...</div>
                 ) : (
                   <div className="space-y-4">
                     {deployments.length === 0 ? (
-                      <p className="text-center text-gray-500">No deployments found.</p>
+                      <p className="text-center text-muted-foreground">No deployments found.</p>
                     ) : (
                       deployments.map((deployment) => (
                         <div key={deployment.id} className="flex items-center justify-between p-3 border rounded-lg">
                           <div>
                             <div className="font-medium">{deployment.contractName}</div>
-                            <div className="text-sm text-gray-500">
+                            <div className="text-sm text-muted-foreground">
                               {devnets.find(d => d.id === deployment.devnetId)?.name || deployment.devnetId} • {new Date(deployment.timestamp).toLocaleDateString()}
                             </div>
-                            <div className="text-xs font-mono text-gray-600 mt-1">
+                            <div className="text-xs font-mono text-muted-foreground mt-1">
                               {deployment.contractAddress.substring(0, 6)}...{deployment.contractAddress.substring(deployment.contractAddress.length - 4)}
                             </div>
                           </div>

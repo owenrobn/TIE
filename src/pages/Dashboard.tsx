@@ -89,12 +89,12 @@ const Dashboard = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
+    <div className="min-h-screen bg-background p-6">
       <div className="max-w-7xl mx-auto">
         <div className="flex justify-between items-center mb-8">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">Testnet Intelligence Engine</h1>
-            <p className="text-gray-600">Monitor and analyze testnet opportunities in real-time</p>
+            <h1 className="text-3xl font-bold text-foreground">Testnet Intelligence Engine</h1>
+            <p className="text-muted-foreground">Monitor and analyze testnet opportunities in real-time</p>
           </div>
           <Button>
             <Zap className="mr-2 h-4 w-4" />
@@ -155,25 +155,25 @@ const Dashboard = () => {
             </CardHeader>
             <CardContent>
               {loading ? (
-                <div className="text-center text-gray-500">Loading recent signals...</div>
+                <div className="text-center text-muted-foreground">Loading recent signals...</div>
               ) : (
                 <div className="space-y-4">
                   {signals.slice(0, 4).map((signal) => ( // Display top 4 recent signals
                     <div key={signal.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50">
                       <div>
                         <div className="font-medium">{signal.chain}</div>
-                        <div className="text-sm text-gray-500">{signal.type}</div>
+                        <div className="text-sm text-muted-foreground">{signal.type}</div>
                       </div>
                       <div className="flex items-center space-x-3">
                         <Badge variant={signal.score > 80 ? "default" : signal.score > 60 ? "secondary" : "outline"}>
                           {signal.score}
                         </Badge>
-                        <span className="text-sm text-gray-500">{getRelativeTime(signal.timestamp)}</span>
-                        <ExternalLink className="h-4 w-4 text-gray-400" />
+                        <span className="text-sm text-muted-foreground">{getRelativeTime(signal.timestamp)}</span>
+                        <ExternalLink className="h-4 w-4 text-muted-foreground" />
                       </div>
                     </div>
                   ))}
-                  {signals.length === 0 && <p className="text-center text-gray-500">No recent signals found.</p>}
+                  {signals.length === 0 && <p className="text-center text-muted-foreground">No recent signals found.</p>}
                 </div>
               )}
             </CardContent>
@@ -185,14 +185,14 @@ const Dashboard = () => {
             </CardHeader>
             <CardContent>
               {loading ? (
-                <div className="text-center text-gray-500">Loading detector statuses...</div>
+                <div className="text-center text-muted-foreground">Loading detector statuses...</div>
               ) : (
                 <div className="space-y-4">
                   {detectorStatuses.map((detector, index) => (
                     <div key={index} className="flex items-center justify-between p-3 border rounded-lg">
                       <div>
                         <div className="font-medium">{detector.name}</div>
-                        <div className="text-sm text-gray-500">
+                        <div className="text-sm text-muted-foreground">
                           {detector.name.includes('MEV') ? 'MEV Detector' : 'Testnet Opportunity Detector'}
                         </div>
                       </div>
@@ -201,7 +201,7 @@ const Dashboard = () => {
                       </Badge>
                     </div>
                   ))}
-                  {detectorStatuses.length === 0 && <p className="text-center text-gray-500">No detectors found.</p>}
+                  {detectorStatuses.length === 0 && <p className="text-center text-muted-foreground">No detectors found.</p>}
                 </div>
               )}
             </CardContent>

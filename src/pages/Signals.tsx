@@ -109,12 +109,12 @@ const Signals = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
+    <div className="min-h-screen bg-background p-6">
       <div className="max-w-7xl mx-auto">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-8">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">Signals</h1>
-            <p className="text-gray-600">Monitor and analyze detected opportunities</p>
+            <h1 className="text-3xl font-bold text-foreground">Signals</h1>
+            <p className="text-muted-foreground">Monitor and analyze detected opportunities</p>
           </div>
           <div className="flex space-x-2 mt-4 md:mt-0">
             <div className="relative">
@@ -143,7 +143,7 @@ const Signals = () => {
           </CardHeader>
           <CardContent>
             {loading ? (
-              <div className="text-center text-gray-500">Loading signals...</div>
+              <div className="text-center text-muted-foreground">Loading signals...</div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full">
@@ -201,14 +201,14 @@ const Signals = () => {
                   <tbody>
                     {filteredSignals.length === 0 ? (
                       <tr>
-                        <td colSpan={7} className="text-center py-4 text-gray-500">No signals found.</td>
+                        <td colSpan={7} className="text-center py-4 text-muted-foreground">No signals found.</td>
                       </tr>
                     ) : (
                       filteredSignals.map((signal) => (
                         <tr key={signal.id} className="border-b hover:bg-gray-50">
                           <td className="py-3 px-4">
                             <div className="font-medium">{signal.chain}</div>
-                            <div className="text-sm text-gray-500">{signal.detector}</div>
+                            <div className="text-sm text-muted-foreground">{signal.detector}</div>
                           </td>
                           <td className="py-3 px-4">
                             <Badge variant="outline">{signal.type}</Badge>
@@ -230,7 +230,7 @@ const Signals = () => {
                               {signal.urgency}
                             </Badge>
                           </td>
-                          <td className="py-3 px-4 text-sm text-gray-500">
+                          <td className="py-3 px-4 text-sm text-muted-foreground">
                             {new Date(signal.timestamp).toLocaleString()}
                           </td>
                           <td className="py-3 px-4">

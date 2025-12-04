@@ -76,12 +76,12 @@ const MEV = () => {
   ]);
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
+    <div className="min-h-screen bg-background p-6">
       <div className="max-w-7xl mx-auto">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-8">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">MEV Intelligence</h1>
-            <p className="text-gray-600">Monitor and analyze MEV opportunities on testnets</p>
+            <h1 className="text-3xl font-bold text-foreground">MEV Intelligence</h1>
+            <p className="text-muted-foreground">Monitor and analyze MEV opportunities on testnets</p>
           </div>
           <div className="flex space-x-2 mt-4 md:mt-0">
             <Button>
@@ -145,14 +145,14 @@ const MEV = () => {
                           {opportunity.urgency}
                         </Badge>
                       </div>
-                      <div className="text-sm text-gray-500">
+                      <div className="text-sm text-muted-foreground">
                         {opportunity.chain} • {new Date(opportunity.timestamp).toLocaleTimeString()}
                       </div>
                     </div>
                     <div className="flex items-center space-x-3">
                       <div className="text-right">
                         <div className="font-medium">{opportunity.profit}</div>
-                        <div className="text-sm text-gray-500">{opportunity.confidence}% confidence</div>
+                        <div className="text-sm text-muted-foreground">{opportunity.confidence}% confidence</div>
                       </div>
                       <Button size="sm" variant="outline">
                         <ExternalLink className="h-4 w-4" />
@@ -182,7 +182,7 @@ const MEV = () => {
                           {anomaly.status}
                         </Badge>
                       </div>
-                      <div className="text-sm text-gray-500">
+                      <div className="text-sm text-muted-foreground">
                         {anomaly.chain} • {new Date(anomaly.timestamp).toLocaleTimeString()}
                       </div>
                     </div>

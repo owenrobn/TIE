@@ -58,12 +58,12 @@ const Settings = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
+    <div className="min-h-screen bg-background p-6">
       <div className="max-w-4xl mx-auto">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-8">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">Settings</h1>
-            <p className="text-gray-600">Configure system parameters and connections</p>
+            <h1 className="text-3xl font-bold text-foreground">Settings</h1>
+            <p className="text-muted-foreground">Configure system parameters and connections</p>
           </div>
           <div className="flex space-x-2 mt-4 md:mt-0">
             <Button variant="outline" onClick={handleReset}>
@@ -188,7 +188,7 @@ const Settings = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <Label>Enable HMAC Signing</Label>
-                  <p className="text-sm text-gray-500">Sign all outgoing signals with HMAC-SHA256</p>
+                  <p className="text-sm text-muted-foreground">Sign all outgoing signals with HMAC-SHA256</p>
                 </div>
                 <Switch
                   checked={settings.security.enableHMAC}

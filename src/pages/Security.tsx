@@ -62,12 +62,12 @@ const Security = () => {
   ]);
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
+    <div className="min-h-screen bg-background p-6">
       <div className="max-w-7xl mx-auto">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-8">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">Security</h1>
-            <p className="text-gray-600">Monitor and manage security for testnet operations</p>
+            <h1 className="text-3xl font-bold text-foreground">Security</h1>
+            <p className="text-muted-foreground">Monitor and manage security for testnet operations</p>
           </div>
           <div className="flex space-x-2 mt-4 md:mt-0">
             <Button>
@@ -137,8 +137,8 @@ const Security = () => {
                           {alert.status}
                         </Badge>
                       </div>
-                      <p className="text-sm text-gray-500 mt-1">{alert.description}</p>
-                      <div className="text-xs text-gray-400 mt-2">
+                      <p className="text-sm text-muted-foreground mt-1">{alert.description}</p>
+                      <div className="text-xs text-muted-foreground mt-2">
                         {new Date(alert.timestamp).toLocaleString()}
                       </div>
                     </div>
@@ -171,11 +171,11 @@ const Security = () => {
                     <div key={key.id} className="flex items-center justify-between p-3 border rounded-lg">
                       <div>
                         <div className="font-medium">{key.name}</div>
-                        <div className="text-sm text-gray-500">{key.service}</div>
+                        <div className="text-sm text-muted-foreground">{key.service}</div>
                         <div className="text-xs font-mono mt-1">
                           {showSecrets ? key.key : key.key.replace(/\*/g, '•')}
                         </div>
-                        <div className="text-xs text-gray-400 mt-1">
+                        <div className="text-xs text-muted-foreground mt-1">
                           Last used: {new Date(key.lastUsed).toLocaleString()}
                         </div>
                       </div>
@@ -197,21 +197,21 @@ const Security = () => {
                   <div className="flex items-center justify-between">
                     <div>
                       <div className="font-medium">Behavioral Analysis</div>
-                      <div className="text-sm text-gray-500">Monitor interaction patterns</div>
+                      <div className="text-sm text-muted-foreground">Monitor interaction patterns</div>
                     </div>
                     <Badge variant="default">Active</Badge>
                   </div>
                   <div className="flex items-center justify-between">
                     <div>
                       <div className="font-medium">Address Reputation</div>
-                      <div className="text-sm text-gray-500">Track address history</div>
+                      <div className="text-sm text-muted-foreground">Track address history</div>
                     </div>
                     <Badge variant="default">Active</Badge>
                   </div>
                   <div className="flex items-center justify-between">
                     <div>
                       <div className="font-medium">Transaction Velocity</div>
-                      <div className="text-sm text-gray-500">Limit rapid transactions</div>
+                      <div className="text-sm text-muted-foreground">Limit rapid transactions</div>
                     </div>
                     <Badge variant="default">Active</Badge>
                   </div>

@@ -111,12 +111,12 @@ const Detectors = () => {
   const activeCount = detectors.filter(d => d.enabled).length;
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
+    <div className="min-h-screen bg-background p-6">
       <div className="max-w-7xl mx-auto">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-8">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">Detectors</h1>
-            <p className="text-gray-600">Manage and monitor detection modules</p>
+            <h1 className="text-3xl font-bold text-foreground">Detectors</h1>
+            <p className="text-muted-foreground">Manage and monitor detection modules</p>
           </div>
           <div className="flex items-center space-x-4 mt-4 md:mt-0">
             <div className="flex items-center">
@@ -131,7 +131,7 @@ const Detectors = () => {
         </div>
 
         {loading ? (
-          <div className="text-center text-gray-500">Loading detectors...</div>
+          <div className="text-center text-muted-foreground">Loading detectors...</div>
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {detectors.map((detector) => (
@@ -149,7 +149,7 @@ const Detectors = () => {
                         </Badge>
                       </CardTitle>
                       {/* Placeholder for description, as it's not returned by API yet */}
-                      <p className="text-sm text-gray-500 mt-1">
+                      <p className="text-sm text-muted-foreground mt-1">
                         {detector.name.includes('MEV') ? 'MEV Detector' : 'Testnet Opportunity Detector'}
                       </p>
                     </div>
@@ -168,7 +168,7 @@ const Detectors = () => {
                   </div>
                   
                   <div className="flex justify-between items-center">
-                    <div className="text-sm text-gray-500">
+                    <div className="text-sm text-muted-foreground">
                       Last run: {detector.lastRun ? new Date(detector.lastRun).toLocaleString() : 'Never'}
                     </div>
                     <div className="flex space-x-2">
