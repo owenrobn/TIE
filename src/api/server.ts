@@ -166,6 +166,17 @@ app.post('/api/tae/execute/:signalId', (req: Request, res: Response) => {
   }
 });
 
+// New TAE Execution History and Failed Signals routes
+app.get('/api/tae/executions', (req: Request, res: Response) => {
+  const executions = taeEngine.getExecutionHistory();
+  res.json(executions);
+});
+
+app.get('/api/tae/queue/failed', (req: Request, res: Response) => {
+  const failedSignals = taeEngine.getFailedSignals();
+  res.json(failedSignals);
+});
+
 // TAE Wallet Management Routes
 app.get('/api/tae/wallets', async (req: Request, res: Response) => {
   const wallets = await taeEngine.getWallets(); // Await getWallets

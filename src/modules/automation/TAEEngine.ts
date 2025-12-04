@@ -176,4 +176,13 @@ export class TAEEngine {
   async removeWallet(id: string): Promise<boolean> {
     return this.walletManager.removeWallet(id);
   }
+
+  // New methods to expose execution history and failed signals
+  getExecutionHistory(): any[] {
+    return this.rewardTracker.getExecutions();
+  }
+
+  getFailedSignals(): any[] {
+    return this.executionQueue.getFailedSignals();
+  }
 }
