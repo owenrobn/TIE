@@ -7,10 +7,11 @@ import {
   User,
   Menu
 } from 'lucide-react';
+import { ThemeToggle } from '@/components/ThemeToggle'; // Import ThemeToggle
 
 const Header = () => {
   return (
-    <header className="flex items-center justify-between border-b bg-white p-4">
+    <header className="flex items-center justify-between border-b bg-white p-4 dark:bg-gray-900"> {/* Added dark mode background */}
       <div className="flex items-center">
         <Button variant="ghost" size="icon" className="md:hidden">
           <Menu className="h-5 w-5" />
@@ -26,6 +27,7 @@ const Header = () => {
         <Button variant="ghost" size="icon">
           <User className="h-5 w-5" />
         </Button>
+        <ThemeToggle /> {/* Add the ThemeToggle here */}
       </div>
     </header>
   );

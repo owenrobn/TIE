@@ -14,29 +14,32 @@ import MEV from '@/pages/MEV';
 import Security from '@/pages/Security';
 import Settings from '@/pages/Settings';
 import NotFound from '@/pages/NotFound';
+import { ThemeProvider } from '@/components/theme-provider'; // Import ThemeProvider
 
 const queryClient = new QueryClient();
 
 const App = () => {
   return (
     <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <Toaster />
-        <BrowserRouter>
-          <Layout>
-            <Routes>
-              <Route path="/" element={<Dashboard />} />
-              <Route path="/signals" element={<Signals />} />
-              <Route path="/detectors" element={<Detectors />} />
-              <Route path="/automation" element={<Automation />} />
-              <Route path="/mev" element={<MEV />} />
-              <Route path="/security" element={<Security />} />
-              <Route path="/settings" element={<Settings />} />
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </Layout>
-        </BrowserRouter>
-      </TooltipProvider>
+      <ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme"> {/* Wrap with ThemeProvider */}
+        <TooltipProvider>
+          <Toaster />
+          <BrowserRouter>
+            <Layout>
+              <Routes>
+                <Route path="/" element={<Dashboard />} />
+                <Route path="/signals" element={<Signals />} />
+                <Route path="/detectors" element={<Detectors />} />
+                <Route path="/automation" element={<Automation />} />
+                <Route path="/mev" element={<MEV />} />
+                <Route path="/security" element={<Security />} />
+                <Route path="/settings" element={<Settings />} />
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </Layout>
+          </BrowserRouter>
+        </TooltipProvider>
+      </ThemeProvider>
     </QueryClientProvider>
   );
 };
