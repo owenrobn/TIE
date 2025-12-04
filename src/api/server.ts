@@ -229,6 +229,40 @@ app.post('/api/tae/execute/:signalId', (req: Request, res: Response) => {
   }
 });
 
+// New TAE Wallet Management Routes
+app.get('/api/tae/wallets', (req: Request, res: Response) => {
+  const wallets = taeEngine.getWallets();
+  res.json(wallets);
+});
+
+app.post('/api/tae/wallets', (req: Request, res: Response) => {
+  const { address, privateKey, persona } = req.body;
+  if (!address || !privateKey || !persona) {
+    return res.status(400).json({ success: false, message: 'Address, private key, and persona are required.' });
+  }
+  try {
+    const newWallet = taeEngine.addWallet(address, privateKey, persona);
+    res.status(201).json({ success: true, message: 'Wallet added successfully.', wallet: newWallet });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message || 'Failed to add wallet.' });
+  }
+});
+
+app.delete('/api/tae/wallets/:id', (req: Request, res: Response) => {
+  const { id } = req.params;
+  try {
+    const success = taeEngine.removeWallet(id);
+    if (success) {
+      res.json({ success: true, message: `Wallet ${id} removed successfully.` });
+    } else {
+      res.status(404).json({ success: false, message: `Wallet ${id} not found.` });
+    }
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message || 'Failed to remove wallet.' });
+  }
+});
+
+
 // Start the engines
 tieEngine.start().catch(console.error);
 taeEngine.start().catch(console.error); // Start TAE Engine

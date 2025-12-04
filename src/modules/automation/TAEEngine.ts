@@ -114,8 +114,7 @@ export class TAEEngine {
       );
 
       this.rewardTracker.recordExecution(signal.signal_id, wallet.address, executionResult);
-      this.reportingEngine.reportExecution(signal.signal_id, wallet.address, executionResult);
-
+      this.reportingEngine.reportExecution(signal.signal_id, wallet.address, { success: false, error: error.message });
       console.log(`Signal ${signal.signal_id} executed successfully.`);
     } catch (error: any) {
       console.error(`Execution failed for signal ${signal.signal_id}:`, error);
@@ -142,5 +141,18 @@ export class TAEEngine {
       return true;
     }
     return false;
+  }
+
+  // New methods for wallet management
+  getWallets(): any[] {
+    return this.walletManager.getWallets();
+  }
+
+  addWallet(address: string, privateKey: string, persona: any): any {
+    return this.walletManager.addWallet(address, privateKey, persona);
+  }
+
+  removeWallet(id: string): boolean {
+    return this.walletManager.removeWallet(id);
   }
 }
