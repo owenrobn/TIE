@@ -8,9 +8,10 @@ import { TAEEngine } from '../modules/automation/TAEEngine';
 import { AutomationEngine } from '../modules/automation/AutomationEngine';
 import { EVMAdapter } from '../modules/adapters/EVMAdapter';
 import { DatabaseService } from '../storage/DatabaseService'; // Import DatabaseService
+import config from 'config'; // Import config
 
 const app = express();
-const port = process.env.PORT || 3000;
+const port = process.env.PORT || config.get('app.port') || 3000; // Use config for port
 
 // Middleware
 app.use(express.json());
@@ -49,6 +50,7 @@ app.post('/api/detectors/:name/toggle', async (req: Request, res: Response) => {
       message: `Toggled detector ${name}`
     });
   } catch (error: any) {
+    console.error(`Error toggling detector ${name}:`, error);
     res.status(500).json({ success: false, message: error.message || 'Failed to toggle detector.' });
   }
 });
@@ -58,6 +60,7 @@ app.get('/api/signals', async (req: Request, res: Response) => {
     const signals = await tieEngine.getSignals(); // Fetch signals from TIEEngine (now from DB)
     res.json(signals);
   } catch (error: any) {
+    console.error('Error fetching signals:', error);
     res.status(500).json({ success: false, message: error.message || 'Failed to fetch signals.' });
   }
 });
@@ -84,6 +87,7 @@ app.post('/api/faucets/request', async (req: Request, res: Response) => {
       res.status(400).json({ success: false, message: `Cooldown period not expired. Please wait ${timeLeft} hours.` });
     }
   } catch (error: any) {
+    console.error('Error requesting faucet funds:', error);
     res.status(500).json({ success: false, message: error.message || 'Failed to request funds.' });
   }
 });
@@ -110,6 +114,7 @@ app.post('/api/deploy', async (req: Request, res: Response) => {
     const contractAddress = await devnetDeployer.deployContract(devnetId, contractName, bytecode, abi, constructorArgs);
     res.json({ success: true, message: 'Contract deployed successfully.', contractAddress });
   } catch (error: any) {
+    console.error('Error deploying contract:', error);
     res.status(500).json({ success: false, message: error.message || 'Failed to deploy contract.' });
   }
 });
@@ -128,6 +133,7 @@ app.post('/api/verify', async (req: Request, res: Response) => {
       res.status(400).json({ success: false, message: 'Contract verification failed.' });
     }
   } catch (error: any) {
+    console.error('Error verifying contract:', error);
     res.status(500).json({ success: false, message: error.message || 'Failed to verify contract.' });
   }
 });
@@ -147,13 +153,19 @@ app.post('/api/tae/signal', async (req: Request, res: Response) => {
       res.status(400).json({ success: false, message: 'Signal processing failed or invalid signature.' });
     }
   } catch (error: any) {
+    console.error('Error processing TAE signal:', error);
     res.status(500).json({ success: false, message: error.message || 'Failed to process signal.' });
   }
 });
 
 app.get('/api/tae/status', async (req: Request, res: Response) => {
-  const status = await taeEngine.getEngineStatus(); // Await getEngineStatus
-  res.json(status);
+  try {
+    const status = await taeEngine.getEngineStatus(); // Await getEngineStatus
+    res.json(status);
+  } catch (error: any) {
+    console.error('Error fetching TAE status:', error);
+    res.status(500).json({ success: false, message: error.message || 'Failed to fetch TAE status.' });
+  }
 });
 
 app.post('/api/tae/execute/:signalId', (req: Request, res: Response) => {
@@ -179,8 +191,13 @@ app.get('/api/tae/queue/failed', (req: Request, res: Response) => {
 
 // TAE Wallet Management Routes
 app.get('/api/tae/wallets', async (req: Request, res: Response) => {
-  const wallets = await taeEngine.getWallets(); // Await getWallets
-  res.json(wallets);
+  try {
+    const wallets = await taeEngine.getWallets(); // Await getWallets
+    res.json(wallets);
+  } catch (error: any) {
+    console.error('Error fetching wallets:', error);
+    res.status(500).json({ success: false, message: error.message || 'Failed to fetch wallets.' });
+  }
 });
 
 app.post('/api/tae/wallets', async (req: Request, res: Response) => {
@@ -192,7 +209,24 @@ app.post('/api/tae/wallets', async (req: Request, res: Response) => {
     const newWallet = await taeEngine.addWallet(address, privateKey, persona); // Await addWallet
     res.status(201).json({ success: true, message: 'Wallet added successfully.', wallet: newWallet });
   } catch (error: any) {
+    console.error('Error adding wallet:', error);
     res.status(500).json({ success: false, message: error.message || 'Failed to add wallet.' });
+  }
+});
+
+app.put('/api/tae/wallets/:id', async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const updates = req.body;
+  try {
+    const updatedWallet = await taeEngine.updateWallet(id, updates); // Await updateWallet
+    if (updatedWallet) {
+      res.json({ success: true, message: `Wallet ${id} updated successfully.`, wallet: updatedWallet });
+    } else {
+      res.status(404).json({ success: false, message: `Wallet ${id} not found.` });
+    }
+  } catch (error: any) {
+    console.error(`Error updating wallet ${id}:`, error);
+    res.status(500).json({ success: false, message: error.message || 'Failed to update wallet.' });
   }
 });
 
@@ -206,14 +240,20 @@ app.delete('/api/tae/wallets/:id', async (req: Request, res: Response) => {
       res.status(404).json({ success: false, message: `Wallet ${id} not found.` });
     }
   } catch (error: any) {
+    console.error(`Error removing wallet ${id}:`, error);
     res.status(500).json({ success: false, message: error.message || 'Failed to remove wallet.' });
   }
 });
 
 // Automation Rules API Routes
 app.get('/api/automation/rules', async (req: Request, res: Response) => {
-  const rules = await automationEngine.getAutomationRules(); // Await getAutomationRules
-  res.json(rules);
+  try {
+    const rules = await automationEngine.getAutomationRules(); // Await getAutomationRules
+    res.json(rules);
+  } catch (error: any) {
+    console.error('Error fetching automation rules:', error);
+    res.status(500).json({ success: false, message: error.message || 'Failed to fetch automation rules.' });
+  }
 });
 
 app.post('/api/automation/rules', async (req: Request, res: Response) => {
@@ -225,6 +265,7 @@ app.post('/api/automation/rules', async (req: Request, res: Response) => {
     const newRule = await automationEngine.addRule({ name, description, enabled: enabled ?? false, conditions }); // Await addRule
     res.status(201).json({ success: true, message: 'Automation rule added successfully.', rule: newRule });
   } catch (error: any) {
+    console.error('Error adding automation rule:', error);
     res.status(500).json({ success: false, message: error.message || 'Failed to add automation rule.' });
   }
 });
@@ -240,6 +281,7 @@ app.put('/api/automation/rules/:id', async (req: Request, res: Response) => {
       res.status(404).json({ success: false, message: `Automation rule ${id} not found.` });
     }
   } catch (error: any) {
+    console.error(`Error updating automation rule ${id}:`, error);
     res.status(500).json({ success: false, message: error.message || 'Failed to update automation rule.' });
   }
 });
@@ -254,6 +296,7 @@ app.post('/api/automation/rules/:id/toggle', async (req: Request, res: Response)
       res.status(404).json({ success: false, message: `Automation rule ${id} not found.` });
     }
   } catch (error: any) {
+    console.error(`Error toggling automation rule ${id}:`, error);
     res.status(500).json({ success: false, message: error.message || 'Failed to toggle automation rule.' });
   }
 });
@@ -268,6 +311,7 @@ app.delete('/api/automation/rules/:id', async (req: Request, res: Response) => {
       res.status(404).json({ success: false, message: `Automation rule ${id} not found.` });
     }
   } catch (error: any) {
+    console.error(`Error deleting automation rule ${id}:`, error);
     res.status(500).json({ success: false, message: error.message || 'Failed to delete automation rule.' });
   }
 });
@@ -276,10 +320,21 @@ app.delete('/api/automation/rules/:id', async (req: Request, res: Response) => {
 // Start the engines
 // Connect to the database before starting TIEEngine
 databaseService.connect().then(async () => {
+  console.log('Database connected successfully. Initializing engines...');
   await automationEngine.initialize(); // Initialize AutomationEngine to load rules
-  tieEngine.start().catch(console.error);
-  taeEngine.start().catch(console.error);
-}).catch(console.error);
+  await tieEngine.start();
+  await taeEngine.start();
+  console.log('All engines initialized.');
+
+  // Start the server only after engines are initialized
+  app.listen(port, () => {
+    console.log(`TIE API server running at http://localhost:${port}`);
+  });
+
+}).catch((error) => {
+  console.error('Failed to connect to database or initialize engines:', error);
+  process.exit(1); // Exit if critical startup fails
+});
 
 
 // Handle graceful shutdown
@@ -298,10 +353,3 @@ process.on('SIGINT', async () => {
   await databaseService.disconnect(); // Disconnect DB on shutdown
   process.exit(0);
 });
-
-// Start the server
-app.listen(port, () => {
-  console.log(`TIE API server running at http://localhost:${port}`);
-});
-
-export default app;
