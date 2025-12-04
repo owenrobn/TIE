@@ -34,7 +34,7 @@ export class TIEEngine {
     this.databaseService = databaseService;
     this.detectors = []; // Initialize empty, will load from DB
     
-    this.simulationEngine = new SimulationEngine();
+    this.simulationEngine = new SimulationEngine(); // SimulationEngine now gets config from 'config' module
     this.scoringEngine = new ScoringEngine();
     
     const securityConfig = config.get('security') as any;
@@ -219,7 +219,12 @@ export class TIEEngine {
 
     let simulation = null;
     if (detection.transaction) {
-      simulation = await this.simulationEngine.simulate(detection.transaction);
+      // Construct SimulationRequest from detection.transaction
+      const simulationRequest = {
+        chain: detection.chain,
+        transactions: [detection.transaction] // Wrap single transaction in an array
+      };
+      simulation = await this.simulationEngine.simulate(simulationRequest);
     }
 
     const signalData = {
@@ -235,16 +240,13 @@ export class TIEEngine {
       score: 0, // Will be updated after scoring
       status: 'New',
       detector: detectorName,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      confidence: detection.confidence || (simulation?.confidence || 0.5), // Use detection confidence or simulation confidence
+      rewardPotential: detection.rewardPotential || (simulation?.estimatedReward ? simulation.estimatedReward / 1000 : 0.5), // Mock reward potential
+      walletAgeDays: Math.floor(Math.random() * 30) // Mock for sybil risk calculation
     };
 
-    const calculatedScore = this.scoringEngine.calculateScore({
-      reward_depth: detection.confidence || 0.5,
-      urgency: this.scoringEngine.calculateUrgency(signalData),
-      confidence: detection.confidence || 0.5,
-      sybil_risk: this.scoringEngine.calculateSybilRisk(signalData),
-      capital_requirement: 0.2 
-    });
+    const calculatedScore = this.scoringEngine.calculateScore(signalData);
 
     signalData.score = calculatedScore;
 
