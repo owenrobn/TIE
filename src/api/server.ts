@@ -4,6 +4,7 @@ import express, { Request, Response } from 'express';
 import { TIEEngine } from '../modules/engine/TIEEngine';
 import { TestnetFaucetManager } from '../modules/automation/TestnetFaucetManager';
 import { DevnetDeployer } from '../modules/automation/DevnetDeployer';
+import { TAEEngine } from '../modules/automation/TAEEngine'; // Import TAEEngine
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -11,10 +12,11 @@ const port = process.env.PORT || 3000;
 // Middleware
 app.use(express.json());
 
-// Initialize TIE Engine, TestnetFaucetManager, and DevnetDeployer
+// Initialize TIE Engine, TestnetFaucetManager, DevnetDeployer, and TAEEngine
 const tieEngine = new TIEEngine();
 const faucetManager = new TestnetFaucetManager();
 const devnetDeployer = new DevnetDeployer();
+const taeEngine = new TAEEngine(); // Initialize TAEEngine
 
 // Routes
 app.get('/api/health', (req: Request, res: Response) => {
@@ -193,8 +195,43 @@ app.post('/api/verify', async (req: Request, res: Response) => {
   }
 });
 
-// Start the engine
+// New TAE API Routes
+app.post('/api/tae/signal', async (req: Request, res: Response) => {
+  const signature = req.headers['x-mev-signature'] as string;
+  if (!signature) {
+    return res.status(401).json({ success: false, message: 'X-MEV-Signature header is required.' });
+  }
+
+  try {
+    const success = await taeEngine.receiveSignal(req.body, signature);
+    if (success) {
+      res.json({ success: true, message: 'Signal received and processed.' });
+    } else {
+      res.status(400).json({ success: false, message: 'Signal processing failed or invalid signature.' });
+    }
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message || 'Failed to process signal.' });
+  }
+});
+
+app.get('/api/tae/status', (req: Request, res: Response) => {
+  const status = taeEngine.getEngineStatus();
+  res.json(status);
+});
+
+app.post('/api/tae/execute/:signalId', (req: Request, res: Response) => {
+  const { signalId } = req.params;
+  const success = taeEngine.manuallyExecuteSignal(signalId);
+  if (success) {
+    res.json({ success: true, message: `Signal ${signalId} manually triggered for execution.` });
+  } else {
+    res.status(404).json({ success: false, message: `Signal ${signalId} not found in queue.` });
+  }
+});
+
+// Start the engines
 tieEngine.start().catch(console.error);
+taeEngine.start().catch(console.error); // Start TAE Engine
 
 // Start the server
 app.listen(port, () => {
