@@ -14,14 +14,14 @@ import MEV from '@/pages/MEV';
 import Security from '@/pages/Security';
 import Settings from '@/pages/Settings';
 import NotFound from '@/pages/NotFound';
-import { ThemeProvider } from '@/components/theme-provider'; // Import ThemeProvider
+import { ThemeProvider } from '@/components/theme-provider';
 
 const queryClient = new QueryClient();
 
 const App = () => {
   return (
     <QueryClientProvider client={queryClient}>
-      <ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme"> {/* Wrap with ThemeProvider */}
+      <ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme" attribute="class"> {/* Added attribute="class" */}
         <TooltipProvider>
           <Toaster />
           <BrowserRouter>
