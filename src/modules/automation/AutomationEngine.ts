@@ -1,7 +1,4 @@
 // AutomationEngine.ts
-import { TIEEngine } from '../engine/TIEEngine';
-import { EVMAdapter } from '../adapters/EVMAdapter';
-import { SimulationEngine } from '../simulation/SimulationEngine';
 import { DatabaseService } from '../../storage/DatabaseService'; // Import DatabaseService
 
 interface AutomationRule {
@@ -17,20 +14,16 @@ interface AutomationRule {
 }
 
 export class AutomationEngine {
-  private tieEngine: TIEEngine;
-  private evmAdapter: EVMAdapter;
-  private simulationEngine: SimulationEngine;
   private databaseService: DatabaseService; // Inject DatabaseService
-  private running: boolean;
   private automationRules: AutomationRule[]; // Will be loaded from DB
 
-  constructor(tieEngine: TIEEngine, evmAdapter: EVMAdapter, databaseService: DatabaseService) {
-    this.tieEngine = tieEngine;
-    this.evmAdapter = evmAdapter;
-    this.simulationEngine = new SimulationEngine();
+  constructor(databaseService: DatabaseService) {
     this.databaseService = databaseService; // Assign DatabaseService
-    this.running = false;
     this.automationRules = []; // Initialize empty, will load from DB
+  }
+
+  async initialize(): Promise<void> {
+    await this.loadAutomationRules(); // Load rules on startup
   }
 
   private async loadAutomationRules(): Promise<void> {
@@ -44,193 +37,6 @@ export class AutomationEngine {
       status: rule.status as 'active' | 'inactive'
     }));
     console.log(`Loaded ${this.automationRules.length} automation rules from database.`);
-  }
-
-  async start(): Promise<void> {
-    if (this.running) {
-      console.log('Automation Engine is already running');
-      return;
-    }
-
-    this.running = true;
-    console.log('Starting Automation Engine...');
-    await this.loadAutomationRules(); // Load rules on startup
-
-    // Start listening for signals
-    this.listenForSignals();
-  }
-
-  async stop(): Promise<void> {
-    this.running = false;
-    console.log('Stopping Automation Engine...');
-  }
-
-  private async listenForSignals(): Promise<void> {
-    // In a real implementation, this would subscribe to a message queue or webhook
-    // For demo purposes, we'll simulate receiving signals
-    while (this.running) {
-      try {
-        // Simulate receiving a signal
-        const signal = await this.receiveSignal();
-        if (signal) {
-          await this.processSignal(signal);
-        }
-        
-        // Wait before checking for next signal
-        await new Promise(resolve => setTimeout(resolve, 2000));
-      } catch (error) {
-        console.error('Error in signal listener:', error);
-        await new Promise(resolve => setTimeout(resolve, 5000));
-      }
-    }
-  }
-
-  private async receiveSignal(): Promise<any | null> {
-    // Simulate receiving signals with 30% probability
-    if (Math.random() > 0.3) {
-      return null;
-    }
-
-    // Generate a random signal for demo
-    const signalTypes = [
-      'Staking Reward Spike',
-      'Governance Activity',
-      'Bridge Event',
-      'Liquidity Event',
-      'New Contract Deployment'
-    ];
-
-    const chains = [
-      'Ethereum Sepolia',
-      'Arbitrum Nitro',
-      'Optimism Goerli',
-      'Base Goerli',
-      'Polygon Mumbai'
-    ];
-
-    const randomType = signalTypes[Math.floor(Math.random() * signalTypes.length)];
-    const randomChain = chains[Math.floor(Math.random() * chains.length)];
-    const randomScore = Math.floor(Math.random() * 40) + 60; // 60-100
-
-    return {
-      id: `sig-${Date.now()}`,
-      chain: randomChain,
-      type: randomType,
-      contract: `0x${Math.random().toString(16).substr(2, 40)}`,
-      score: randomScore,
-      urgency: randomScore > 85 ? 'High' : randomScore > 70 ? 'Medium' : 'Low',
-      timestamp: new Date().toISOString(),
-      detector: 'AutomationEngine'
-    };
-  }
-
-  private async processSignal(signal: any): Promise<void> {
-    console.log('Processing signal for automation:', signal);
-
-    // Check if any automation rules match
-    for (const rule of this.automationRules) {
-      if (!rule.enabled) continue;
-
-      // Check if signal meets rule conditions
-      if (this.matchesRule(signal, rule)) {
-        console.log(`Executing automation rule: ${rule.name}`);
-        await this.executeAutomation(signal, rule);
-      }
-    }
-  }
-
-  private matchesRule(signal: any, rule: AutomationRule): boolean {
-    // Check signal type
-    if (rule.conditions.type && signal.type !== rule.conditions.type) {
-      return false;
-    }
-
-    // Check minimum score
-    if (rule.conditions.minScore && signal.score < rule.conditions.minScore) {
-      return false;
-    }
-
-    return true;
-  }
-
-  private async executeAutomation(signal: any, rule: AutomationRule): Promise<void> {
-    try {
-      console.log(`Executing automation for signal ${signal.id} with rule ${rule.name}`);
-
-      // Simulate automation execution
-      await new Promise(resolve => setTimeout(resolve, 1500));
-
-      // Different automation actions based on rule type
-      switch (rule.conditions.type) { // Use rule.conditions.type for action logic
-        case 'Staking Reward Spike':
-          await this.claimStakingRewards(signal);
-          break;
-        case 'Governance Activity':
-          await this.participateInGovernance(signal);
-          break;
-        case 'Bridge Event':
-          await this.bridgeAssets(signal);
-          break;
-        case 'Liquidity Event':
-          await this.provideLiquidity(signal);
-          break;
-        default:
-          console.log('Unknown automation rule type, skipping execution');
-      }
-
-      console.log(`Automation executed successfully for rule: ${rule.name}`);
-    } catch (error) {
-      console.error(`Failed to execute automation for rule ${rule.name}:`, error);
-      throw error;
-    }
-  }
-
-  private async claimStakingRewards(signal: any): Promise<void> {
-    console.log(`Claiming staking rewards on ${signal.chain} for contract ${signal.contract}`);
-    
-    // In a real implementation, this would:
-    // 1. Connect to the chain
-    // 2. Check reward balance
-    // 3. Submit claim transaction
-    // 4. Monitor transaction status
-    
-    // Simulate the process
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    console.log('Staking rewards claimed successfully');
-  }
-
-  private async participateInGovernance(signal: any): Promise<void> {
-    console.log(`Participating in governance on ${signal.chain} for contract ${signal.contract}`);
-    
-    // In a real implementation, this would:
-    // 1. Fetch proposal details
-    // 2. Analyze proposal content
-    // 3. Submit vote transaction
-    
-    // Simulate the process
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    console.log('Governance participation completed');
-  }
-
-  private async bridgeAssets(signal: any): Promise<void> {
-    console.log(`Bridging assets for opportunity on ${signal.chain}`);
-    
-    // In a real implementation, this would:
-    // 1. Check asset balances
-    // 2. Select optimal bridge route
-    // 3. Execute bridge transaction
-    // 4. Monitor bridge status
-    
-    // Simulate the process
-    await new Promise(resolve => setTimeout(resolve, 3000));
-    console.log('Assets bridged successfully');
-  }
-
-  private async provideLiquidity(signal: any): Promise<void> {
-    console.log(`Providing liquidity for new pool on ${signal.chain} for contract ${signal.contract}`);
-    // Simulate the process
-    await new Promise(resolve => setTimeout(resolve, 2500));
-    console.log('Liquidity provided successfully');
   }
 
   async getAutomationRules(): Promise<AutomationRule[]> {
@@ -317,5 +123,23 @@ export class AutomationEngine {
       console.log(`Automation rule ${ruleId} deleted.`);
     }
     return success;
+  }
+
+  async getMatchingRules(signal: any): Promise<AutomationRule[]> {
+    await this.loadAutomationRules(); // Ensure rules are fresh
+    return this.automationRules.filter(rule => {
+      if (!rule.enabled) return false;
+
+      // Check signal type
+      if (rule.conditions.type && signal.type !== rule.conditions.type) {
+        return false;
+      }
+
+      // Check minimum score
+      if (rule.conditions.minScore && signal.score < rule.conditions.minScore) {
+        return false;
+      }
+      return true;
+    });
   }
 }

@@ -8,6 +8,7 @@ import { RewardTracker } from './RewardTracker';
 import { ExecutionQueue } from './ExecutionQueue';
 import { ReportingEngine } from './ReportingEngine';
 import { DatabaseService } from '../../storage/DatabaseService'; // Import DatabaseService
+import { AutomationEngine } from './AutomationEngine'; // Import AutomationEngine
 
 export class TAEEngine {
   private signalReceiver: SignalReceiver;
@@ -20,9 +21,11 @@ export class TAEEngine {
   private reportingEngine: ReportingEngine;
   private running: boolean;
   private databaseService: DatabaseService; // Inject DatabaseService
+  private automationEngine: AutomationEngine; // Inject AutomationEngine
 
-  constructor(databaseService: DatabaseService) {
+  constructor(databaseService: DatabaseService, automationEngine: AutomationEngine) {
     this.databaseService = databaseService; // Assign DatabaseService
+    this.automationEngine = automationEngine; // Assign AutomationEngine
     // Initialize components with mock data/configs for now
     this.signalReceiver = new SignalReceiver('your-tie-secret-key');
     this.decisionEngine = new DecisionEngine();
@@ -63,19 +66,30 @@ export class TAEEngine {
       }
 
       console.log('Received valid signal:', signalPayload.signal_id);
-      const decision = this.decisionEngine.decide(signalPayload);
+      
+      // Check for matching automation rules
+      const matchingRules = await this.automationEngine.getMatchingRules(signalPayload);
+
+      if (matchingRules.length === 0) {
+        console.log(`No automation rules matched for signal ${signalPayload.signal_id}. Ignoring.`);
+        return true; // Signal processed, but no action taken
+      }
+
+      // For simplicity, let's use the first matching rule's conditions for decision
+      // In a more complex system, you might combine conditions or prioritize rules.
+      const decision = this.decisionEngine.decide(signalPayload); // DecisionEngine still provides base logic
 
       switch (decision.action) {
         case 'execute_immediately':
-          console.log(`Executing signal ${signalPayload.signal_id} immediately.`);
+          console.log(`Executing signal ${signalPayload.signal_id} immediately based on rule.`);
           this.executeSignal(signalPayload);
           break;
         case 'queue_for_execution':
-          console.log(`Queueing signal ${signalPayload.signal_id}. Priority: ${decision.priority}`);
+          console.log(`Queueing signal ${signalPayload.signal_id} based on rule. Priority: ${decision.priority}`);
           this.executionQueue.add(signalPayload, decision.priority);
           break;
         case 'ignore':
-          console.log(`Ignoring signal ${signalPayload.signal_id}. Reason: ${decision.reason}`);
+          console.log(`Ignoring signal ${signalPayload.signal_id} based on rule decision. Reason: ${decision.reason}`);
           break;
       }
       return true;

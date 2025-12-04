@@ -38,7 +38,7 @@ export class TIEEngine {
     
     const securityConfig = config.get('security') as any;
     this.signalDispatcher = new SignalDispatcher(
-      securityConfig.webhookUrl || 'https://webhook.example.com/receive', // Use config for webhook URL
+      securityConfig.taeWebhookUrl, // Use configured TAE webhook URL
       securityConfig.webhookSecret || 'your-webhook-secret'
     );
     this.contractFingerprinter = new ContractFingerprinter();

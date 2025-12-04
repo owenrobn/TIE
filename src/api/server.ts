@@ -18,15 +18,14 @@ app.use(express.json());
 // Initialize DatabaseService
 const databaseService = new DatabaseService();
 
-// Initialize TIE Engine, TestnetFaucetManager, DevnetDeployer, TAEEngine, and AutomationEngine
+// Initialize AutomationEngine first, as TAEEngine depends on it
+const automationEngine = new AutomationEngine(databaseService);
+
+// Initialize TIE Engine, TestnetFaucetManager, DevnetDeployer, TAEEngine
 const tieEngine = new TIEEngine(databaseService); // Pass DatabaseService to TIEEngine
 const faucetManager = new TestnetFaucetManager();
 const devnetDeployer = new DevnetDeployer();
-const taeEngine = new TAEEngine(databaseService); // Pass DatabaseService to TAEEngine
-
-// Mock EVMAdapter for AutomationEngine constructor
-const mockEVMAdapter = new EVMAdapter('http://localhost:8545', '31337');
-const automationEngine = new AutomationEngine(tieEngine, mockEVMAdapter, databaseService); // Pass DatabaseService to AutomationEngine
+const taeEngine = new TAEEngine(databaseService, automationEngine); // Pass DatabaseService and AutomationEngine to TAEEngine
 
 // Routes
 app.get('/api/health', (req: Request, res: Response) => {
@@ -265,10 +264,10 @@ app.delete('/api/automation/rules/:id', async (req: Request, res: Response) => {
 
 // Start the engines
 // Connect to the database before starting TIEEngine
-databaseService.connect().then(() => {
+databaseService.connect().then(async () => {
+  await automationEngine.initialize(); // Initialize AutomationEngine to load rules
   tieEngine.start().catch(console.error);
   taeEngine.start().catch(console.error);
-  automationEngine.start().catch(console.error);
 }).catch(console.error);
 
 
@@ -277,7 +276,6 @@ process.on('SIGTERM', async () => {
   console.log('SIGTERM received, shutting down gracefully');
   await tieEngine.stop();
   await taeEngine.stop();
-  await automationEngine.stop();
   await databaseService.disconnect(); // Disconnect DB on shutdown
   process.exit(0);
 });
@@ -286,7 +284,6 @@ process.on('SIGINT', async () => {
   console.log('SIGINT received, shutting down gracefully');
   await tieEngine.stop();
   await taeEngine.stop();
-  await automationEngine.stop();
   await databaseService.disconnect(); // Disconnect DB on shutdown
   process.exit(0);
 });

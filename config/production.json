@@ -25,6 +25,7 @@
   },
   "security": {
     "webhookSecret": "${WEBHOOK_SECRET}",
-    "enableHMAC": true
+    "enableHMAC": true,
+    "taeWebhookUrl": "http://tie-engine:8080/api/tae/signal"
   }
 }
