@@ -8,13 +8,14 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=3000
-      - DB_PASSWORD=tie_password # Pass the database password to the engine service
+      - DB_PASSWORD=tie_password
     volumes:
       - ./data:/app/data
     depends_on:
       - postgres
     networks:
       - tie-network
+    command: sh -c "npm run migrate && npm start" # This command will run migrations then start the app
 
   postgres:
     image: postgres:15-alpine
