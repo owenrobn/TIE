@@ -326,7 +326,7 @@ const Automation = () => {
           variant: "destructive",
         });
       } finally {
-        setLoadingDeployments(false);
+      setLoadingDeployments(false);
       }
     };
 
@@ -1403,7 +1403,7 @@ const Automation = () => {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="normal">Normal</SelectItem>
-                  <SelectItem value="aggressive">Aggressive</SelectItem> {/* Corrected typo here */}
+                  <SelectItem value="aggressive">Aggressive</SelectItem>
                   <SelectItem value="passive">Passive</SelectItem>
                 </SelectContent>
               </Select>
