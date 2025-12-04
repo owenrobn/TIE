@@ -9,6 +9,7 @@ import { ExecutionQueue } from './ExecutionQueue';
 import { ReportingEngine } from './ReportingEngine';
 import { DatabaseService } from '../../storage/DatabaseService'; // Import DatabaseService
 import { AutomationEngine } from './AutomationEngine'; // Import AutomationEngine
+import config from 'config'; // Import config
 
 export class TAEEngine {
   private signalReceiver: SignalReceiver;
@@ -26,15 +27,17 @@ export class TAEEngine {
   constructor(databaseService: DatabaseService, automationEngine: AutomationEngine) {
     this.databaseService = databaseService; // Assign DatabaseService
     this.automationEngine = automationEngine; // Assign AutomationEngine
-    // Initialize components with mock data/configs for now
-    this.signalReceiver = new SignalReceiver('your-tie-secret-key');
+    
+    const securityConfig = config.get('security') as any;
+
+    this.signalReceiver = new SignalReceiver(securityConfig.webhookSecret || 'your-tie-secret-key');
     this.decisionEngine = new DecisionEngine();
     this.walletManager = new WalletManager(this.databaseService); // Pass DatabaseService
     this.antiSybilEngine = new AntiSybilEngine();
     this.interactionEngine = new InteractionEngine(); // Will need EVMAdapter later
     this.rewardTracker = new RewardTracker();
     this.executionQueue = new ExecutionQueue();
-    this.reportingEngine = new ReportingEngine('https://n8n.example.com/webhook');
+    this.reportingEngine = new ReportingEngine(securityConfig.taeReportingWebhookUrl || 'https://n8n.example.com/webhook');
     this.running = false;
   }
 

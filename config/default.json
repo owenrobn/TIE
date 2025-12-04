@@ -54,6 +54,7 @@
   "security": {
     "webhookSecret": "your-webhook-secret-key",
     "enableHMAC": true,
-    "taeWebhookUrl": "http://localhost:3000/api/tae/signal"
+    "taeWebhookUrl": "http://localhost:3000/api/tae/signal",
+    "taeReportingWebhookUrl": "https://n8n.example.com/webhook"
   }
 }
