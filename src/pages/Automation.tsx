@@ -20,7 +20,9 @@ import {
   PlusCircle,
   Trash2,
   Clock,
-  Edit
+  Edit,
+  History,
+  AlertCircle
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Input } from '@/components/ui/input';
@@ -87,6 +89,37 @@ interface AutomationRule {
   status: 'active' | 'inactive';
 }
 
+interface ExecutionRecord {
+  signalId: string;
+  walletAddress: string;
+  timestamp: string;
+  result: {
+    success: boolean;
+    txHash?: string;
+    gasUsed?: number;
+    error?: string;
+    output?: any;
+  };
+}
+
+interface FailedSignal {
+  signal: {
+    signal_id: string;
+    chain: string;
+    type: string;
+    context: {
+      description: string;
+      contract_address: string;
+    };
+    score: number;
+  };
+  priority: number;
+  addedAt: string;
+  retries: number;
+  lastAttempt?: string;
+  error?: string;
+}
+
 const Automation = () => {
   const { toast } = useToast();
   const [automationRules, setAutomationRules] = useState<AutomationRule[]>([]);
@@ -123,14 +156,13 @@ const Automation = () => {
   const [wallets, setWallets] = useState<WalletData[]>([]);
   const [loadingTaeStatus, setLoadingTaeStatus] = useState(true);
   const [loadingWallets, setLoadingWallets] = useState(true);
-  const [newWalletForm, setNewWalletForm] = useState({
-    address: '',
-    privateKey: '',
-    personaName: 'Explorer',
-    behaviorProfile: 'normal',
-    chains: ['Ethereum Sepolia']
-  });
-  const [addingWallet, setAddingWallet] = useState(false);
+  
+  // New state for executions and failed signals
+  const [executionHistory, setExecutionHistory] = useState<ExecutionRecord[]>([]);
+  const [loadingExecutionHistory, setLoadingExecutionHistory] = useState(true);
+  const [failedSignals, setFailedSignals] = useState<FailedSignal[]>([]);
+  const [loadingFailedSignals, setLoadingFailedSignals] = useState(true);
+
 
   // Rule Management Dialog State
   const [isRuleDialogOpen, setIsRuleDialogOpen] = useState(false);
@@ -141,6 +173,18 @@ const Automation = () => {
     minScore: 60,
     type: 'Staking Reward Spike',
     enabled: true
+  });
+
+  // Wallet Management Dialog State
+  const [isWalletDialogOpen, setIsWalletDialogOpen] = useState(false);
+  const [editingWallet, setEditingWallet] = useState<WalletData | null>(null);
+  const [walletForm, setWalletForm] = useState({
+    id: '',
+    address: '',
+    privateKey: '',
+    personaName: 'Explorer',
+    behaviorProfile: 'normal' as 'normal' | 'aggressive' | 'passive',
+    chains: ['Ethereum Sepolia']
   });
 
   const fetchAutomationRules = async () => {
@@ -189,6 +233,38 @@ const Automation = () => {
       });
     } finally {
       setLoadingWallets(false);
+    }
+
+    // Fetch execution history
+    try {
+      const executionsResponse = await fetch('/api/tae/executions');
+      if (!executionsResponse.ok) throw new Error('Failed to fetch execution history');
+      const executionsData: ExecutionRecord[] = await executionsResponse.json();
+      setExecutionHistory(executionsData);
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: `Failed to load execution history: ${error.message}`,
+        variant: "destructive",
+      });
+    } finally {
+      setLoadingExecutionHistory(false);
+    }
+
+    // Fetch failed signals
+    try {
+      const failedSignalsResponse = await fetch('/api/tae/queue/failed');
+      if (!failedSignalsResponse.ok) throw new Error('Failed to fetch failed signals');
+      const failedSignalsData: FailedSignal[] = await failedSignalsResponse.json();
+      setFailedSignals(failedSignalsData);
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: `Failed to load failed signals: ${error.message}`,
+        variant: "destructive",
+      });
+    } finally {
+      setLoadingFailedSignals(false);
     }
   };
 
@@ -570,65 +646,85 @@ const Automation = () => {
     }
   };
 
-  const handleAddWallet = async () => {
-    if (!newWalletForm.address || !newWalletForm.privateKey || !newWalletForm.personaName || !newWalletForm.behaviorProfile || newWalletForm.chains.length === 0) {
+  const handleSaveWallet = async () => {
+    if (!walletForm.address || !walletForm.privateKey || !walletForm.personaName || !walletForm.behaviorProfile || walletForm.chains.length === 0) {
       toast({
         title: "Missing Information",
-        description: "Please fill in all required fields for adding a wallet.",
+        description: "Please fill in all required fields for the wallet.",
         variant: "destructive",
       });
       return;
     }
 
-    setAddingWallet(true);
+    const walletPayload = {
+      address: walletForm.address,
+      privateKey: walletForm.privateKey,
+      persona: {
+        name: walletForm.personaName,
+        behaviorProfile: walletForm.behaviorProfile,
+        chains: walletForm.chains
+      }
+    };
+
     try {
-      const response = await fetch('/api/tae/wallets', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          address: newWalletForm.address,
-          privateKey: newWalletForm.privateKey,
-          persona: {
-            name: newWalletForm.personaName,
-            behaviorProfile: newWalletForm.behaviorProfile,
-            chains: newWalletForm.chains
-          }
-        }),
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        toast({
-          title: "Wallet Added",
-          description: `Wallet ${newWalletForm.address} added successfully.`,
-        });
-        fetchTAEData(); // Refresh wallets list
-        setNewWalletForm({
-          address: '',
-          privateKey: '',
-          personaName: 'Explorer',
-          behaviorProfile: 'normal',
-          chains: ['Ethereum Sepolia']
+      let response;
+      if (editingWallet) {
+        response = await fetch(`/api/tae/wallets/${walletForm.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(walletPayload),
         });
       } else {
-        toast({
-          title: "Failed to Add Wallet",
-          description: data.message || "An unknown error occurred.",
-          variant: "destructive",
+        response = await fetch('/api/tae/wallets', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(walletPayload),
         });
       }
+
+      if (!response.ok) {
+        throw new Error(`Failed to ${editingWallet ? 'update' : 'add'} wallet.`);
+      }
+
+      const data = await response.json();
+      toast({
+        title: `Wallet ${editingWallet ? 'Updated' : 'Added'}`,
+        description: data.message,
+      });
+      setIsWalletDialogOpen(false);
+      fetchTAEData(); // Refresh wallets list
     } catch (error: any) {
       toast({
         title: "Error",
-        description: `Failed to add wallet: ${error.message}`,
+        description: `Failed to ${editingWallet ? 'update' : 'add'} wallet: ${error.message}`,
         variant: "destructive",
       });
-    } finally {
-      setAddingWallet(false);
     }
+  };
+
+  const openWalletDialog = (wallet?: WalletData) => {
+    if (wallet) {
+      setEditingWallet(wallet);
+      setWalletForm({
+        id: wallet.id,
+        address: wallet.address,
+        privateKey: wallet.privateKey, // Note: Private key might not be returned by API for security
+        personaName: wallet.persona.name,
+        behaviorProfile: wallet.persona.behaviorProfile,
+        chains: wallet.persona.chains
+      });
+    } else {
+      setEditingWallet(null);
+      setWalletForm({
+        id: '',
+        address: '',
+        privateKey: '',
+        personaName: 'Explorer',
+        behaviorProfile: 'normal',
+        chains: ['Ethereum Sepolia']
+      });
+    }
+    setIsWalletDialogOpen(true);
   };
 
   const handleRemoveWallet = async (id: string, address: string) => {
@@ -857,12 +953,107 @@ const Automation = () => {
           </Card>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center">
-                <Wallet className="h-5 w-5 mr-2" />
-                Managed Wallets
+                <History className="h-5 w-5 mr-2" />
+                Recent Executions
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {loadingExecutionHistory ? (
+                <div className="text-center text-muted-foreground">Loading execution history...</div>
+              ) : (
+                <div className="space-y-4">
+                  {executionHistory.length === 0 ? (
+                    <p className="text-center text-muted-foreground">No recent executions.</p>
+                  ) : (
+                    executionHistory.slice(0, 5).map((execution) => ( // Show top 5 recent executions
+                      <div key={execution.signalId + execution.timestamp} className="flex items-center justify-between p-3 border rounded-lg">
+                        <div>
+                          <div className="font-medium flex items-center">
+                            {execution.result.success ? (
+                              <CheckCircle className="h-4 w-4 text-green-500 mr-2" />
+                            ) : (
+                              <XCircle className="h-4 w-4 text-red-500 mr-2" />
+                            )}
+                            Signal: {execution.signalId.substring(0, 8)}...
+                          </div>
+                          <div className="text-sm text-muted-foreground">
+                            Wallet: {execution.walletAddress.substring(0, 6)}...{execution.walletAddress.substring(execution.walletAddress.length - 4)}
+                          </div>
+                          <div className="text-xs text-muted-foreground mt-1">
+                            {new Date(execution.timestamp).toLocaleString()}
+                          </div>
+                        </div>
+                        <Badge variant={execution.result.success ? 'default' : 'destructive'}>
+                          {execution.result.success ? 'Success' : 'Failed'}
+                        </Badge>
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center">
+                <AlertCircle className="h-5 w-5 mr-2" />
+                Failed Signals
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {loadingFailedSignals ? (
+                <div className="text-center text-muted-foreground">Loading failed signals...</div>
+              ) : (
+                <div className="space-y-4">
+                  {failedSignals.length === 0 ? (
+                    <p className="text-center text-muted-foreground">No failed signals in queue.</p>
+                  ) : (
+                    failedSignals.map((failedSignal) => (
+                      <div key={failedSignal.signal.signal_id} className="flex items-start justify-between p-3 border rounded-lg">
+                        <div className="flex-1">
+                          <div className="font-medium flex items-center">
+                            <XCircle className="h-4 w-4 text-red-500 mr-2" />
+                            {failedSignal.signal.type} ({failedSignal.signal.chain})
+                          </div>
+                          <p className="text-sm text-muted-foreground mt-1">
+                            {failedSignal.signal.context.description}
+                          </p>
+                          <div className="text-xs text-muted-foreground mt-1">
+                            Retries: {failedSignal.retries} • Last Attempt: {getRelativeTime(failedSignal.lastAttempt || null)}
+                          </div>
+                          {failedSignal.error && (
+                            <p className="text-xs text-red-400 mt-1">Error: {failedSignal.error}</p>
+                          )}
+                        </div>
+                        <Button size="sm" variant="outline">
+                          Retry
+                        </Button>
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center justify-between">
+                <div className="flex items-center">
+                  <Wallet className="h-5 w-5 mr-2" />
+                  Managed Wallets
+                </div>
+                <Button onClick={() => openWalletDialog()}>
+                  <PlusCircle className="h-4 w-4 mr-2" />
+                  Add Wallet
+                </Button>
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -887,79 +1078,23 @@ const Automation = () => {
                             Last Used: {getRelativeTime(wallet.lastUsed)}
                           </div>
                         </div>
-                        <Button 
-                          variant="destructive" 
-                          size="sm"
-                          onClick={() => handleRemoveWallet(wallet.id, wallet.address)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                        <div className="flex space-x-2">
+                          <Button variant="outline" size="sm" onClick={() => openWalletDialog(wallet)}>
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button 
+                            variant="destructive" 
+                            size="sm"
+                            onClick={() => handleRemoveWallet(wallet.id, wallet.address)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </div>
                     ))
                   )}
                 </div>
               )}
-              <div className="mt-6 space-y-4">
-                <h3 className="text-lg font-semibold flex items-center">
-                  <PlusCircle className="h-5 w-5 mr-2" /> Add New Wallet
-                </h3>
-                <div className="grid gap-2">
-                  <Label htmlFor="new-wallet-address">Address</Label>
-                  <Input
-                    id="new-wallet-address"
-                    value={newWalletForm.address}
-                    onChange={(e) => setNewWalletForm(prev => ({ ...prev, address: e.target.value }))}
-                    placeholder="0x..."
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="new-wallet-private-key">Private Key</Label>
-                  <Input
-                    id="new-wallet-private-key"
-                    type="password"
-                    value={newWalletForm.privateKey}
-                    onChange={(e) => setNewWalletForm(prev => ({ ...prev, privateKey: e.target.value }))}
-                    placeholder="0x..."
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="new-wallet-persona-name">Persona Name</Label>
-                  <Input
-                    id="new-wallet-persona-name"
-                    value={newWalletForm.personaName}
-                    onChange={(e) => setNewWalletForm(prev => ({ ...prev, personaName: e.target.value }))}
-                    placeholder="Explorer"
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="new-wallet-behavior-profile">Behavior Profile</Label>
-                  <Select
-                    value={newWalletForm.behaviorProfile}
-                    onValueChange={(value: 'normal' | 'aggressive' | 'passive') => setNewWalletForm(prev => ({ ...prev, behaviorProfile: value }))}
-                  >
-                    <SelectTrigger id="new-wallet-behavior-profile">
-                      <SelectValue placeholder="Select profile" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="normal">Normal</SelectItem>
-                      <SelectItem value="aggressive">Aggressive</SelectItem>
-                      <SelectItem value="passive">Passive</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="new-wallet-chains">Chains (comma-separated)</Label>
-                  <Input
-                    id="new-wallet-chains"
-                    value={newWalletForm.chains.join(', ')}
-                    onChange={(e) => setNewWalletForm(prev => ({ ...prev, chains: e.target.value.split(',').map(c => c.trim()).filter(Boolean) }))}
-                    placeholder="Ethereum Sepolia, Arbitrum Nitro"
-                  />
-                </div>
-                <Button onClick={handleAddWallet} disabled={addingWallet}>
-                  {addingWallet ? 'Adding...' : 'Add Wallet'}
-                </Button>
-              </div>
             </CardContent>
           </Card>
 
@@ -1207,6 +1342,88 @@ const Automation = () => {
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsRuleDialogOpen(false)}>Cancel</Button>
             <Button onClick={handleSaveRule}>{editingRule ? 'Save Changes' : 'Add Rule'}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isWalletDialogOpen} onOpenChange={setIsWalletDialogOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>{editingWallet ? 'Edit Wallet' : 'Add New Wallet'}</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="wallet-address" className="text-right">
+                Address
+              </Label>
+              <Input
+                id="wallet-address"
+                value={walletForm.address}
+                onChange={(e) => setWalletForm(prev => ({ ...prev, address: e.target.value }))}
+                placeholder="0x..."
+                className="col-span-3"
+                disabled={!!editingWallet} {/* Disable address editing for existing wallets */}
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="wallet-private-key" className="text-right">
+                Private Key
+              </Label>
+              <Input
+                id="wallet-private-key"
+                type="password"
+                value={walletForm.privateKey}
+                onChange={(e) => setWalletForm(prev => ({ ...prev, privateKey: e.target.value }))}
+                placeholder="0x..."
+                className="col-span-3"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="wallet-persona-name" className="text-right">
+                Persona Name
+              </Label>
+              <Input
+                id="wallet-persona-name"
+                value={walletForm.personaName}
+                onChange={(e) => setWalletForm(prev => ({ ...prev, personaName: e.target.value }))}
+                placeholder="Explorer"
+                className="col-span-3"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="wallet-behavior-profile" className="text-right">
+                Behavior Profile
+              </Label>
+              <Select
+                value={walletForm.behaviorProfile}
+                onValueChange={(value: 'normal' | 'aggressive' | 'passive') => setWalletForm(prev => ({ ...prev, behaviorProfile: value }))}
+              >
+                <SelectTrigger id="wallet-behavior-profile" className="col-span-3">
+                  <SelectValue placeholder="Select profile" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="normal">Normal</SelectItem>
+                  <SelectItem value="aggressive">Aggressive</SelectItem>
+                  <SelectItem value="passive">Passive</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="wallet-chains" className="text-right">
+                Chains (comma-separated)
+              </Label>
+              <Input
+                id="wallet-chains"
+                value={walletForm.chains.join(', ')}
+                onChange={(e) => setWalletForm(prev => ({ ...prev, chains: e.target.value.split(',').map(c => c.trim()).filter(Boolean) }))}
+                placeholder="Ethereum Sepolia, Arbitrum Nitro"
+                className="col-span-3"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsWalletDialogOpen(false)}>Cancel</Button>
+            <Button onClick={handleSaveWallet}>{editingWallet ? 'Save Changes' : 'Add Wallet'}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
