@@ -6,7 +6,7 @@ import Header from '@/components/layout/Header';
 
 const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   return (
-    <div className="flex h-screen bg-gray-50">
+    <div className="flex h-screen bg-background"> {/* Changed bg-gray-50 to bg-background */}
       <div className="hidden md:flex md:w-64 md:flex-col">
         <Sidebar />
       </div>

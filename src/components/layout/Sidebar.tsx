@@ -56,15 +56,15 @@ const Sidebar = () => {
   ];
 
   return (
-    <div className="flex h-full flex-col border-r bg-white">
-      <div className="p-4 border-b">
+    <div className="flex h-full flex-col border-r border-sidebar-border bg-sidebar"> {/* Updated background and border */}
+      <div className="p-4 border-b border-sidebar-border"> {/* Updated border */}
         <div className="flex items-center space-x-2">
-          <div className="bg-blue-600 text-white p-2 rounded-lg">
+          <div className="bg-primary text-primary-foreground p-2 rounded-lg"> {/* Updated logo background and text */}
             <Zap className="h-6 w-6" />
           </div>
           <div>
-            <h1 className="text-lg font-bold">TIE</h1>
-            <p className="text-xs text-gray-500">Testnet Intelligence Engine</p>
+            <h1 className="text-lg font-bold text-sidebar-foreground">TIE</h1> {/* Updated text color */}
+            <p className="text-xs text-muted-foreground">Testnet Intelligence Engine</p> {/* Updated text color */}
           </div>
         </div>
       </div>
@@ -79,8 +79,8 @@ const Sidebar = () => {
                 key={item.name}
                 variant={isActive ? "default" : "ghost"}
                 className={cn(
-                  "w-full justify-start",
-                  isActive && "bg-blue-100 text-blue-900 hover:bg-blue-100"
+                  "w-full justify-start text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground", // Default text and hover
+                  isActive && "bg-sidebar-primary text-sidebar-primary-foreground hover:bg-sidebar-primary hover:text-sidebar-primary-foreground" // Active state
                 )}
                 asChild
               >
@@ -93,8 +93,8 @@ const Sidebar = () => {
           })}
         </nav>
       </div>
-      <div className="p-4 border-t">
-        <div className="text-xs text-gray-500">
+      <div className="p-4 border-t border-sidebar-border"> {/* Updated border */}
+        <div className="text-xs text-muted-foreground"> {/* Updated text color */}
           Testnet Intelligence Engine v1.0
         </div>
       </div>
