@@ -13,17 +13,9 @@ A multi-chain engine that discovers, analyzes, ranks, and signals profitable tes
 - **Signal Dispatch**: Sends signed signals to automation engines
 - **Anti-Sybil Measures**: Behavioral variation logic to minimize detection risk
 
-## Architecture
+## Architecture Overview
 
-The TIE consists of several modular components:
-
-1. **Chain Adapters**: Unified interface to different blockchain RPC/WSS endpoints
-2. **Contract Fingerprinting Engine**: Classifies smart contracts based on ABI, bytecode, events, and behavior
-3. **Detectors**: Modular signals that identify economic opportunities
-4. **Simulation Engine**: Local EVM fork-based simulation to test interaction sequences
-5. **Scoring Engine**: Ranks opportunities based on multiple factors
-6. **Signal Dispatcher**: Sends signed signals to automation engines
-7. **Automation Sandbox**: Optional module for low-risk automated actions
+For a complete architecture breakdown, see [TIE_ARCHITECTURE.md](TIE_ARCHITECTURE.md)
 
 ## Getting Started
 
