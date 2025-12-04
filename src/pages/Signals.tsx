@@ -14,6 +14,7 @@ import {
   ChevronDown
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { io } from 'socket.io-client'; // Import socket.io-client
 
 interface Signal {
   id: string;
@@ -55,8 +56,29 @@ const Signals = () => {
 
   useEffect(() => {
     fetchSignals();
-    const interval = setInterval(fetchSignals, 15000); // Refresh every 15 seconds
-    return () => clearInterval(interval);
+
+    const socket = io('http://localhost:3000'); // Connect to your backend Socket.IO server
+
+    socket.on('connect', () => {
+      console.log('Connected to Socket.IO server from Signals');
+    });
+
+    socket.on('newSignal', (newSignal: Signal) => {
+      console.log('Received new signal via Socket.IO:', newSignal);
+      setAllSignals(prevSignals => [newSignal, ...prevSignals]); // Add new signal to the top
+      toast({
+        title: "New Signal Detected!",
+        description: `${newSignal.type} on ${newSignal.chain} with score ${newSignal.score}.`,
+      });
+    });
+
+    socket.on('disconnect', () => {
+      console.log('Disconnected from Socket.IO server from Signals');
+    });
+
+    return () => {
+      socket.disconnect(); // Clean up socket connection on component unmount
+    };
   }, [toast]);
 
   const handleSort = (key: keyof Signal) => {

@@ -1,6 +1,8 @@
 "use client";
 
 import express, { Request, Response } from 'express';
+import http from 'http'; // Import http module
+import { Server as SocketIOServer } from 'socket.io'; // Import Socket.IO Server
 import { TIEEngine } from '../modules/engine/TIEEngine';
 import { TestnetFaucetManager } from '../modules/automation/TestnetFaucetManager';
 import { DevnetDeployer } from '../modules/automation/DevnetDeployer';
@@ -13,6 +15,15 @@ import config from 'config'; // Import config
 const app = express();
 const port = process.env.PORT || config.get('app.port') || 3000; // Use config for port
 
+// Create an HTTP server to host both Express and Socket.IO
+const httpServer = http.createServer(app);
+export const io = new SocketIOServer(httpServer, {
+  cors: {
+    origin: "*", // Allow all origins for development, restrict in production
+    methods: ["GET", "POST"]
+  }
+});
+
 // Middleware
 app.use(express.json());
 
@@ -23,10 +34,18 @@ const databaseService = new DatabaseService();
 const automationEngine = new AutomationEngine(databaseService);
 
 // Initialize TIE Engine, TestnetFaucetManager, DevnetDeployer, TAEEngine
-const tieEngine = new TIEEngine(databaseService); // Pass DatabaseService to TIEEngine
+const tieEngine = new TIEEngine(databaseService, io); // Pass io to TIEEngine
 const faucetManager = new TestnetFaucetManager();
 const devnetDeployer = new DevnetDeployer();
-const taeEngine = new TAEEngine(databaseService, automationEngine); // Pass DatabaseService and AutomationEngine to TAEEngine
+const taeEngine = new TAEEngine(databaseService, automationEngine, io); // Pass io to TAEEngine
+
+// Socket.IO connection handling
+io.on('connection', (socket) => {
+  console.log('A user connected to Socket.IO');
+  socket.on('disconnect', () => {
+    console.log('User disconnected from Socket.IO');
+  });
+});
 
 // Routes
 app.get('/api/health', (req: Request, res: Response) => {
@@ -327,9 +346,10 @@ databaseService.connect().then(async () => {
     await taeEngine.start();
     console.log('All engines initialized.');
 
-    // Start the server only after engines are initialized
-    app.listen(port, () => {
+    // Start the HTTP server (which also hosts Socket.IO)
+    httpServer.listen(port, () => {
       console.log(`TIE API server running at http://localhost:${port}`);
+      console.log(`Socket.IO server running on http://localhost:${port}`);
     });
   } catch (engineError) {
     console.error('Failed to initialize one or more engines:', engineError);
@@ -348,7 +368,10 @@ process.on('SIGTERM', async () => {
   await tieEngine.stop();
   await taeEngine.stop();
   await databaseService.disconnect(); // Disconnect DB on shutdown
-  process.exit(0);
+  httpServer.close(() => { // Close the HTTP server
+    console.log('HTTP server closed.');
+    process.exit(0);
+  });
 });
 
 process.on('SIGINT', async () => {
@@ -356,5 +379,8 @@ process.on('SIGINT', async () => {
   await tieEngine.stop();
   await taeEngine.stop();
   await databaseService.disconnect(); // Disconnect DB on shutdown
-  process.exit(0);
+  httpServer.close(() => { // Close the HTTP server
+    console.log('HTTP server closed.');
+    process.exit(0);
+  });
 });

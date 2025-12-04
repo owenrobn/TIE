@@ -30,6 +30,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
+import { io } from 'socket.io-client'; // Import socket.io-client
 
 interface Faucet {
   id: string;
@@ -334,10 +335,55 @@ const Automation = () => {
     fetchFaucets();
     fetchDevnets();
     fetchDeployments();
-    fetchTAEData(); // Fetch TAE data on component mount
+    fetchTAEData(); // Fetch initial TAE data
 
-    const interval = setInterval(fetchTAEData, 5000); // Refresh TAE status every 5 seconds
-    return () => clearInterval(interval);
+    const socket = io('http://localhost:3000'); // Connect to your backend Socket.IO server
+
+    socket.on('connect', () => {
+      console.log('Connected to Socket.IO server from Automation');
+    });
+
+    socket.on('taeStatusUpdate', (status: TAEStatus) => {
+      console.log('Received TAE status update via Socket.IO:', status);
+      setTaeStatus(status);
+    });
+
+    socket.on('newExecution', (execution: ExecutionRecord) => {
+      console.log('Received new execution via Socket.IO:', execution);
+      setExecutionHistory(prev => [execution, ...prev]);
+      toast({
+        title: "New Execution Recorded",
+        description: `Signal ${execution.signalId.substring(0, 8)}... executed by ${execution.walletAddress.substring(0, 6)}...`,
+      });
+    });
+
+    socket.on('failedSignal', (failed: FailedSignal) => {
+      console.log('Received failed signal via Socket.IO:', failed);
+      setFailedSignals(prev => [failed, ...prev]);
+      toast({
+        title: "Signal Execution Failed",
+        description: `Signal ${failed.signal.signal_id.substring(0, 8)}... failed: ${failed.error}`,
+        variant: "destructive",
+      });
+    });
+
+    socket.on('walletUpdate', (updatedWallet: WalletData) => {
+      console.log('Received wallet update via Socket.IO:', updatedWallet);
+      setWallets(prev => prev.map(w => w.id === updatedWallet.id ? updatedWallet : w));
+    });
+
+    socket.on('walletRemoved', (walletId: string) => {
+      console.log('Received wallet removed via Socket.IO:', walletId);
+      setWallets(prev => prev.filter(w => w.id !== walletId));
+    });
+
+    socket.on('disconnect', () => {
+      console.log('Disconnected from Socket.IO server from Automation');
+    });
+
+    return () => {
+      socket.disconnect(); // Clean up socket connection on component unmount
+    };
   }, [toast]);
 
   const toggleRule = async (id: string) => {
@@ -692,7 +738,7 @@ const Automation = () => {
         description: data.message,
       });
       setIsWalletDialogOpen(false);
-      fetchTAEData(); // Refresh wallets list
+      // Wallets will be refreshed via socket.io 'walletUpdate' or 'walletRemoved'
     } catch (error: any) {
       toast({
         title: "Error",
@@ -744,7 +790,7 @@ const Automation = () => {
           title: "Wallet Removed",
           description: data.message,
         });
-        fetchTAEData(); // Refresh wallets list
+        // Wallets will be refreshed via socket.io 'walletRemoved'
       } else {
         toast({
           title: "Failed to Remove Wallet",

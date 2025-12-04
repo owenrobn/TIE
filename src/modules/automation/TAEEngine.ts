@@ -11,6 +11,7 @@ import { DatabaseService } from '../../storage/DatabaseService'; // Import Datab
 import { AutomationEngine } from './AutomationEngine'; // Import AutomationEngine
 import { EVMAdapter } from '../adapters/EVMAdapter'; // Import EVMAdapter
 import config from 'config'; // Import config
+import { Server as SocketIOServer } from 'socket.io'; // Import Socket.IO Server
 
 export class TAEEngine {
   private signalReceiver: SignalReceiver;
@@ -25,10 +26,12 @@ export class TAEEngine {
   private databaseService: DatabaseService; // Inject DatabaseService
   private automationEngine: AutomationEngine; // Inject AutomationEngine
   private chainAdapters: Map<string, EVMAdapter>; // Store chain adapters
+  private io: SocketIOServer; // Add Socket.IO server instance
 
-  constructor(databaseService: DatabaseService, automationEngine: AutomationEngine) {
+  constructor(databaseService: DatabaseService, automationEngine: AutomationEngine, io: SocketIOServer) { // Accept io instance
     this.databaseService = databaseService; // Assign DatabaseService
     this.automationEngine = automationEngine; // Assign AutomationEngine
+    this.io = io; // Assign io instance
     
     const securityConfig = config.get('security') as any;
     const chainsConfig = config.get('chains') as any;
@@ -70,6 +73,9 @@ export class TAEEngine {
     console.log('Starting Testnet Automation Engine...');
     await this.walletManager.loadWallets(); // Load wallets on startup
 
+    // Emit initial TAE status
+    this.io.emit('taeStatusUpdate', this.getEngineStatus());
+
     // Start processing signals from the queue
     this.processQueue();
   }
@@ -89,6 +95,9 @@ export class TAEEngine {
 
       console.log('Received valid signal:', signalPayload.signal_id);
       
+      // Emit signal received event
+      this.io.emit('signalReceived', signalPayload);
+
       // Check for matching automation rules
       const matchingRules = await this.automationEngine.getMatchingRules(signalPayload);
 
@@ -109,6 +118,7 @@ export class TAEEngine {
         case 'queue_for_execution':
           console.log(`Queueing signal ${signalPayload.signal_id} based on rule. Priority: ${decision.priority}`);
           this.executionQueue.add(signalPayload, decision.priority);
+          this.io.emit('taeStatusUpdate', this.getEngineStatus()); // Update queue size
           break;
         case 'ignore':
           console.log(`Ignoring signal ${signalPayload.signal_id} based on rule decision. Reason: ${decision.reason}`);
@@ -126,6 +136,7 @@ export class TAEEngine {
       const signal = this.executionQueue.getNext();
       if (signal) {
         console.log(`Processing queued signal: ${signal.signal_id}`);
+        this.io.emit('taeStatusUpdate', this.getEngineStatus()); // Update queue size
         await this.executeSignal(signal);
       }
       await new Promise(resolve => setTimeout(resolve, 1000)); // Check queue every second
@@ -137,6 +148,8 @@ export class TAEEngine {
     if (!wallet) {
       console.error(`No suitable wallet found for signal ${signal.signal_id}`);
       this.executionQueue.addFailed(signal, 'No suitable wallet');
+      this.io.emit('failedSignal', { signal, error: 'No suitable wallet' }); // Emit failed signal
+      this.io.emit('taeStatusUpdate', this.getEngineStatus()); // Update queue size
       return;
     }
 
@@ -156,11 +169,15 @@ export class TAEEngine {
 
       this.rewardTracker.recordExecution(signal.signal_id, wallet.address, executionResult);
       this.reportingEngine.reportExecution(signal.signal_id, wallet.address, executionResult); // Pass full result
+      this.io.emit('newExecution', { signalId: signal.signal_id, walletAddress: wallet.address, result: executionResult }); // Emit new execution
+      this.io.emit('taeStatusUpdate', this.getEngineStatus()); // Update last execution time
       console.log(`Signal ${signal.signal_id} executed successfully.`);
     } catch (error: any) {
       console.error(`Execution failed for signal ${signal.signal_id}:`, error);
       this.executionQueue.addFailed(signal, error.message);
       this.reportingEngine.reportExecution(signal.signal_id, wallet.address, { success: false, error: error.message });
+      this.io.emit('failedSignal', { signal, error: error.message }); // Emit failed signal
+      this.io.emit('taeStatusUpdate', this.getEngineStatus()); // Update queue size
     }
   }
 
@@ -179,6 +196,7 @@ export class TAEEngine {
     if (signal) {
       this.executeSignal(signal);
       this.executionQueue.remove(signalId); // Remove from queue after manual execution
+      this.io.emit('taeStatusUpdate', this.getEngineStatus()); // Update queue size
       return true;
     }
     return false;
@@ -190,15 +208,27 @@ export class TAEEngine {
   }
 
   async addWallet(address: string, privateKey: string, persona: any): Promise<any> {
-    return this.walletManager.addWallet(address, privateKey, persona);
+    const newWallet = await this.walletManager.addWallet(address, privateKey, persona);
+    this.io.emit('walletUpdate', newWallet); // Emit wallet update
+    this.io.emit('taeStatusUpdate', this.getEngineStatus()); // Update wallet count
+    return newWallet;
   }
 
   async updateWallet(id: string, updates: any): Promise<any | null> { // Added updateWallet method
-    return this.walletManager.updateWallet(id, updates);
+    const updatedWallet = await this.walletManager.updateWallet(id, updates);
+    if (updatedWallet) {
+      this.io.emit('walletUpdate', updatedWallet); // Emit wallet update
+    }
+    return updatedWallet;
   }
 
   async removeWallet(id: string): Promise<boolean> {
-    return this.walletManager.removeWallet(id);
+    const success = await this.walletManager.removeWallet(id);
+    if (success) {
+      this.io.emit('walletRemoved', id); // Emit wallet removed
+      this.io.emit('taeStatusUpdate', this.getEngineStatus()); // Update wallet count
+    }
+    return success;
   }
 
   // New methods to expose execution history and failed signals

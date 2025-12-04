@@ -12,6 +12,7 @@ import {
   ExternalLink
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { io } from 'socket.io-client'; // Import socket.io-client
 
 interface Signal {
   id: string;
@@ -26,6 +27,7 @@ interface Signal {
 }
 
 interface DetectorStatus {
+  id: string; // Added id for consistency
   name: string;
   enabled: boolean;
   lastRun: string | null;
@@ -38,32 +40,60 @@ const Dashboard = () => {
   const [detectorStatuses, setDetectorStatuses] = useState<DetectorStatus[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const fetchInitialData = async () => {
+    try {
+      const signalsResponse = await fetch('/api/signals');
+      if (!signalsResponse.ok) throw new Error('Failed to fetch signals');
+      const signalsData: Signal[] = await signalsResponse.json();
+      setSignals(signalsData);
+
+      const detectorsResponse = await fetch('/api/detectors/status');
+      if (!detectorsResponse.ok) throw new Error('Failed to fetch detector statuses');
+      const detectorsData: DetectorStatus[] = await detectorsResponse.json();
+      setDetectorStatuses(detectorsData);
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: `Failed to load dashboard data: ${error.message}`,
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const signalsResponse = await fetch('/api/signals');
-        if (!signalsResponse.ok) throw new Error('Failed to fetch signals');
-        const signalsData: Signal[] = await signalsResponse.json();
-        setSignals(signalsData);
+    fetchInitialData();
 
-        const detectorsResponse = await fetch('/api/detectors/status');
-        if (!detectorsResponse.ok) throw new Error('Failed to fetch detector statuses');
-        const detectorsData: DetectorStatus[] = await detectorsResponse.json();
-        setDetectorStatuses(detectorsData);
-      } catch (error: any) {
-        toast({
-          title: "Error",
-          description: `Failed to load dashboard data: ${error.message}`,
-          variant: "destructive",
-        });
-      } finally {
-        setLoading(false);
-      }
+    const socket = io('http://localhost:3000'); // Connect to your backend Socket.IO server
+
+    socket.on('connect', () => {
+      console.log('Connected to Socket.IO server from Dashboard');
+    });
+
+    socket.on('newSignal', (newSignal: Signal) => {
+      console.log('Received new signal via Socket.IO:', newSignal);
+      setSignals(prevSignals => [newSignal, ...prevSignals].slice(0, 10)); // Keep a limited number of recent signals
+      toast({
+        title: "New Signal Detected!",
+        description: `${newSignal.type} on ${newSignal.chain} with score ${newSignal.score}.`,
+      });
+    });
+
+    socket.on('detectorUpdate', (updatedDetector: DetectorStatus) => {
+      console.log('Received detector update via Socket.IO:', updatedDetector);
+      setDetectorStatuses(prevStatuses => 
+        prevStatuses.map(d => d.id === updatedDetector.id ? updatedDetector : d)
+      );
+    });
+
+    socket.on('disconnect', () => {
+      console.log('Disconnected from Socket.IO server from Dashboard');
+    });
+
+    return () => {
+      socket.disconnect(); // Clean up socket connection on component unmount
     };
-
-    fetchData();
-    const interval = setInterval(fetchData, 15000); // Refresh every 15 seconds
-    return () => clearInterval(interval);
   }, [toast]);
 
   const activeSignalsCount = signals.length;
@@ -189,7 +219,7 @@ const Dashboard = () => {
               ) : (
                 <div className="space-y-4">
                   {detectorStatuses.map((detector, index) => (
-                    <div key={index} className="flex items-center justify-between p-3 border rounded-lg">
+                    <div key={detector.id || index} className="flex items-center justify-between p-3 border rounded-lg">
                       <div>
                         <div className="font-medium">{detector.name}</div>
                         <div className="text-sm text-muted-foreground">

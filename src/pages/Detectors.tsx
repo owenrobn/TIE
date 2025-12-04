@@ -13,8 +13,10 @@ import {
   Activity
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { io } from 'socket.io-client'; // Import socket.io-client
 
 interface DetectorStatus {
+  id: string;
   name: string;
   enabled: boolean;
   lastRun: string | null;
@@ -47,9 +49,27 @@ const Detectors = () => {
 
   useEffect(() => {
     fetchDetectors();
-    // Optionally, refresh detector status periodically
-    const interval = setInterval(fetchDetectors, 10000); // Refresh every 10 seconds
-    return () => clearInterval(interval);
+
+    const socket = io('http://localhost:3000'); // Connect to your backend Socket.IO server
+
+    socket.on('connect', () => {
+      console.log('Connected to Socket.IO server from Detectors');
+    });
+
+    socket.on('detectorUpdate', (updatedDetector: DetectorStatus) => {
+      console.log('Received detector update via Socket.IO:', updatedDetector);
+      setDetectors(prevDetectors => 
+        prevDetectors.map(d => d.id === updatedDetector.id ? updatedDetector : d)
+      );
+    });
+
+    socket.on('disconnect', () => {
+      console.log('Disconnected from Socket.IO server from Detectors');
+    });
+
+    return () => {
+      socket.disconnect(); // Clean up socket connection on component unmount
+    };
   }, [toast]);
 
   const toggleDetector = async (name: string) => {
@@ -70,7 +90,7 @@ const Detectors = () => {
         title: "Detector Toggled",
         description: data.message,
       });
-      fetchDetectors(); // Refresh the list to show updated status
+      // No need to call fetchDetectors() here, as the socket will update the state
     } catch (error: any) {
       toast({
         title: "Error",
@@ -82,7 +102,7 @@ const Detectors = () => {
 
   const restartDetector = (id: string) => {
     // In a real application, this would call a backend API to restart a specific detector
-    const detector = detectors.find(d => d.name === id);
+    const detector = detectors.find(d => d.id === id);
     if (detector) {
       toast({
         title: "Restarting Detector",
@@ -91,13 +111,13 @@ const Detectors = () => {
       // Simulate a restart by briefly changing status and then reverting
       setDetectors(prevDetectors => 
         prevDetectors.map(d => 
-          d.name === id ? { ...d, status: 'inactive', lastRun: new Date().toISOString() } : d
+          d.id === id ? { ...d, status: 'inactive', lastRun: new Date().toISOString() } : d
         )
       );
       setTimeout(() => {
         setDetectors(prevDetectors => 
           prevDetectors.map(d => 
-            d.name === id ? { ...d, status: 'active', lastRun: new Date().toISOString() } : d
+            d.id === id ? { ...d, status: 'active', lastRun: new Date().toISOString() } : d
           )
         );
         toast({
@@ -135,7 +155,7 @@ const Detectors = () => {
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {detectors.map((detector) => (
-              <Card key={detector.name} className="hover:shadow-md transition-shadow">
+              <Card key={detector.id} className="hover:shadow-md transition-shadow">
                 <CardHeader>
                   <div className="flex justify-between items-start">
                     <div>
@@ -175,7 +195,7 @@ const Detectors = () => {
                       <Button 
                         variant="outline" 
                         size="sm"
-                        onClick={() => restartDetector(detector.name)}
+                        onClick={() => restartDetector(detector.id)}
                       >
                         <RotateCcw className="h-4 w-4" />
                       </Button>

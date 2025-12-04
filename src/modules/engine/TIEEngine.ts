@@ -19,6 +19,7 @@ import { EVMAdapter } from '../adapters/EVMAdapter';
 import { DatabaseService } from '../storage/DatabaseService'; // Import DatabaseService
 import config from 'config'; // Import config for webhook secret
 import { ethers } from 'ethers'; // Import ethers for TransactionRequest type
+import { Server as SocketIOServer } from 'socket.io'; // Import Socket.IO Server
 
 export class TIEEngine {
   private detectors: Detector[];
@@ -30,9 +31,11 @@ export class TIEEngine {
   private running: boolean;
   private databaseService: DatabaseService; // Add DatabaseService
   private etherscanApiKey: string; // Store Etherscan API key
+  private io: SocketIOServer; // Add Socket.IO server instance
 
-  constructor(databaseService: DatabaseService) {
+  constructor(databaseService: DatabaseService, io: SocketIOServer) { // Accept io instance
     this.databaseService = databaseService;
+    this.io = io; // Assign io instance
     this.detectors = []; // Initialize empty, will load from DB
     
     this.simulationEngine = new SimulationEngine(); // SimulationEngine now gets config from 'config' module
@@ -164,26 +167,53 @@ export class TIEEngine {
       try {
         if (detector.enabled) {
           const results = await detector.run();
-          await this.databaseService.updateDetectorByName(detector.name, {
+          const updatedDetectorRecord = await this.databaseService.updateDetectorByName(detector.name, {
             last_run: detector.lastRun,
             status: 'active'
           });
+          if (updatedDetectorRecord) {
+            this.io.emit('detectorUpdate', {
+              id: updatedDetectorRecord.id,
+              name: updatedDetectorRecord.name,
+              enabled: updatedDetectorRecord.enabled,
+              lastRun: updatedDetectorRecord.last_run,
+              status: updatedDetectorRecord.status
+            });
+          }
           
           for (const result of results) {
             await this.processDetection(result, detector.name);
           }
         } else {
-          await this.databaseService.updateDetectorByName(detector.name, {
+          const updatedDetectorRecord = await this.databaseService.updateDetectorByName(detector.name, {
             status: 'inactive'
           });
+          if (updatedDetectorRecord) {
+            this.io.emit('detectorUpdate', {
+              id: updatedDetectorRecord.id,
+              name: updatedDetectorRecord.name,
+              enabled: updatedDetectorRecord.enabled,
+              lastRun: updatedDetectorRecord.last_run,
+              status: updatedDetectorRecord.status
+            });
+          }
         }
         
         await new Promise(resolve => setTimeout(resolve, interval));
       } catch (error) {
         console.error(`Error running detector ${detector.name}:`, error);
-        await this.databaseService.updateDetectorByName(detector.name, {
+        const updatedDetectorRecord = await this.databaseService.updateDetectorByName(detector.name, {
           status: 'error'
         });
+        if (updatedDetectorRecord) {
+          this.io.emit('detectorUpdate', {
+            id: updatedDetectorRecord.id,
+            name: updatedDetectorRecord.name,
+            enabled: updatedDetectorRecord.enabled,
+            lastRun: updatedDetectorRecord.last_run,
+            status: updatedDetectorRecord.status
+          });
+        }
         await new Promise(resolve => setTimeout(resolve, 10000)); // Wait longer on error
       }
     }
@@ -250,6 +280,9 @@ export class TIEEngine {
     const savedSignal = await this.databaseService.saveSignal(signalData);
     console.log(`Signal ${savedSignal.id} saved to database with score ${calculatedScore}`);
 
+    // Emit new signal via Socket.IO
+    this.io.emit('newSignal', { ...signalData, id: savedSignal.id });
+
     if (calculatedScore > 50) { // Dispatch threshold
       try {
         await this.signalDispatcher.dispatch({ ...signalData, id: savedSignal.id });
@@ -276,10 +309,19 @@ export class TIEEngine {
     const detector = this.detectors.find(d => d.name === name);
     if (detector) {
       detector.toggle();
-      await this.databaseService.updateDetectorByName(detector.name, {
+      const updatedDetectorRecord = await this.databaseService.updateDetectorByName(detector.name, {
         enabled: detector.enabled,
         status: detector.enabled ? 'active' : 'inactive'
       });
+      if (updatedDetectorRecord) {
+        this.io.emit('detectorUpdate', {
+          id: updatedDetectorRecord.id,
+          name: updatedDetectorRecord.name,
+          enabled: updatedDetectorRecord.enabled,
+          lastRun: updatedDetectorRecord.last_run,
+          status: updatedDetectorRecord.status
+        });
+      }
       console.log(`Detector ${name} toggled to ${detector.enabled}`);
     }
   }
