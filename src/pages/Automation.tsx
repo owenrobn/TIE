@@ -19,13 +19,15 @@ import {
   Wallet,
   PlusCircle,
   Trash2,
-  Clock
+  Clock,
+  Edit
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 
 interface Faucet {
   id: string;
@@ -73,54 +75,22 @@ interface TAEStatus {
   lastExecution: string | null;
 }
 
+interface AutomationRule {
+  id: string;
+  name: string;
+  description: string;
+  enabled: boolean;
+  conditions: {
+    minScore: number;
+    type: string;
+  };
+  status: 'active' | 'inactive';
+}
+
 const Automation = () => {
   const { toast } = useToast();
-  const [automationRules, setAutomationRules] = useState([
-    {
-      id: 'auto-claim-rewards',
-      name: 'Auto Claim Rewards',
-      description: 'Automatically claim staking rewards when above threshold',
-      enabled: true,
-      conditions: {
-        minScore: 80,
-        type: 'Staking Reward Spike'
-      },
-      status: 'active'
-    },
-    {
-      id: 'auto-participate-governance',
-      name: 'Auto Participate Governance',
-      description: 'Automatically participate in governance proposals',
-      enabled: false,
-      conditions: {
-        minScore: 70,
-        type: 'Governance Activity'
-      },
-      status: 'inactive'
-    },
-    {
-      id: 'auto-bridge-assets',
-      name: 'Auto Bridge Assets',
-      description: 'Automatically bridge assets for cross-chain opportunities',
-      enabled: false,
-      conditions: {
-        minScore: 75,
-        type: 'Bridge Event'
-      },
-      status: 'inactive'
-    },
-    {
-      id: 'auto-liquidity-provision',
-      name: 'Auto Liquidity Provision',
-      description: 'Automatically provide liquidity for new pools',
-      enabled: true,
-      conditions: {
-        minScore: 85,
-        type: 'Liquidity Event'
-      },
-      status: 'active'
-    }
-  ]);
+  const [automationRules, setAutomationRules] = useState<AutomationRule[]>([]);
+  const [loadingAutomationRules, setLoadingAutomationRules] = useState(true);
 
   const [faucets, setFaucets] = useState<Faucet[]>([]);
   const [userAddress, setUserAddress] = useState<string>('');
@@ -161,6 +131,34 @@ const Automation = () => {
     chains: ['Ethereum Sepolia']
   });
   const [addingWallet, setAddingWallet] = useState(false);
+
+  // Rule Management Dialog State
+  const [isRuleDialogOpen, setIsRuleDialogOpen] = useState(false);
+  const [editingRule, setEditingRule] = useState<AutomationRule | null>(null);
+  const [ruleForm, setRuleForm] = useState({
+    name: '',
+    description: '',
+    minScore: 60,
+    type: 'Staking Reward Spike',
+    enabled: true
+  });
+
+  const fetchAutomationRules = async () => {
+    try {
+      const response = await fetch('/api/automation/rules');
+      if (!response.ok) throw new Error('Failed to fetch automation rules');
+      const data: AutomationRule[] = await response.json();
+      setAutomationRules(data);
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: `Failed to load automation rules: ${error.message}`,
+        variant: "destructive",
+      });
+    } finally {
+      setLoadingAutomationRules(false);
+    }
+  };
 
   const fetchTAEData = async () => {
     try {
@@ -256,6 +254,7 @@ const Automation = () => {
       }
     };
 
+    fetchAutomationRules();
     fetchFaucets();
     fetchDevnets();
     fetchDeployments();
@@ -265,20 +264,139 @@ const Automation = () => {
     return () => clearInterval(interval);
   }, [toast]);
 
-  const toggleRule = (id: string) => {
-    setAutomationRules(automationRules.map(rule => 
-      rule.id === id 
-        ? { ...rule, enabled: !rule.enabled, status: !rule.enabled ? 'active' : 'inactive' } 
-        : rule
-    ));
-    
-    const rule = automationRules.find(r => r.id === id);
-    if (rule) {
+  const toggleRule = async (id: string) => {
+    try {
+      const response = await fetch(`/api/automation/rules/${id}/toggle`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to toggle rule ${id}`);
+      }
+
+      const data = await response.json();
       toast({
-        title: `${rule.enabled ? 'Disabled' : 'Enabled'} Automation Rule`,
-        description: `${rule.name} has been ${rule.enabled ? 'disabled' : 'enabled'}.`
+        title: "Rule Toggled",
+        description: data.message,
+      });
+      fetchAutomationRules(); // Refresh the list
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: `Failed to toggle rule: ${error.message}`,
+        variant: "destructive",
       });
     }
+  };
+
+  const deleteRule = async (id: string, name: string) => {
+    if (!window.confirm(`Are you sure you want to delete the rule "${name}"?`)) {
+      return;
+    }
+    try {
+      const response = await fetch(`/api/automation/rules/${id}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to delete rule ${id}`);
+      }
+
+      const data = await response.json();
+      toast({
+        title: "Rule Deleted",
+        description: data.message,
+      });
+      fetchAutomationRules(); // Refresh the list
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: `Failed to delete rule: ${error.message}`,
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleSaveRule = async () => {
+    if (!ruleForm.name || !ruleForm.description || !ruleForm.type || ruleForm.minScore === undefined) {
+      toast({
+        title: "Missing Information",
+        description: "Please fill in all required fields for the automation rule.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const rulePayload = {
+      name: ruleForm.name,
+      description: ruleForm.description,
+      enabled: ruleForm.enabled,
+      conditions: {
+        minScore: ruleForm.minScore,
+        type: ruleForm.type
+      }
+    };
+
+    try {
+      let response;
+      if (editingRule) {
+        response = await fetch(`/api/automation/rules/${editingRule.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(rulePayload),
+        });
+      } else {
+        response = await fetch('/api/automation/rules', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(rulePayload),
+        });
+      }
+
+      if (!response.ok) {
+        throw new Error(`Failed to ${editingRule ? 'update' : 'add'} rule.`);
+      }
+
+      const data = await response.json();
+      toast({
+        title: `Rule ${editingRule ? 'Updated' : 'Added'}`,
+        description: data.message,
+      });
+      setIsRuleDialogOpen(false);
+      fetchAutomationRules(); // Refresh the list
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: `Failed to ${editingRule ? 'update' : 'add'} rule: ${error.message}`,
+        variant: "destructive",
+      });
+    }
+  };
+
+  const openRuleDialog = (rule?: AutomationRule) => {
+    if (rule) {
+      setEditingRule(rule);
+      setRuleForm({
+        name: rule.name,
+        description: rule.description,
+        minScore: rule.conditions.minScore,
+        type: rule.conditions.type,
+        enabled: rule.enabled
+      });
+    } else {
+      setEditingRule(null);
+      setRuleForm({
+        name: '',
+        description: '',
+        minScore: 60,
+        type: 'Staking Reward Spike',
+        enabled: true
+      });
+    }
+    setIsRuleDialogOpen(true);
   };
 
   const requestFaucetFunds = async (faucetId: string, chainId: string) => {
@@ -547,7 +665,7 @@ const Automation = () => {
     }
   };
 
-  const activeRules = automationRules.filter(r => r.enabled).length;
+  const activeRulesCount = automationRules.filter(r => r.enabled).length;
 
   const formatCooldown = (ms: number) => {
     const hours = ms / (1000 * 60 * 60);
@@ -572,6 +690,19 @@ const Automation = () => {
     return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
   };
 
+  const signalTypes = [
+    'Staking Reward Spike',
+    'Governance Activity',
+    'Bridge Event',
+    'Liquidity Event',
+    'New Contract Deployment',
+    'Price Mismatch',
+    'Oracle Lag',
+    'Liquidity Imbalance',
+    'Incentive Misalignment',
+    'Liquidation Opportunity'
+  ];
+
   return (
     <div className="min-h-screen bg-background p-6">
       <div className="max-w-7xl mx-auto">
@@ -583,11 +714,11 @@ const Automation = () => {
           <div className="flex items-center space-x-4 mt-4 md:mt-0">
             <div className="flex items-center">
               <Bot className="h-4 w-4 text-green-500 mr-2" />
-              <span className="text-sm font-medium">{activeRules} Active Rules</span>
+              <span className="text-sm font-medium">{activeRulesCount} Active Rules</span>
             </div>
-            <Button>
-              <Settings className="h-4 w-4 mr-2" />
-              Configure
+            <Button onClick={() => openRuleDialog()}>
+              <PlusCircle className="h-4 w-4 mr-2" />
+              Add New Rule
             </Button>
           </div>
         </div>
@@ -626,42 +757,58 @@ const Automation = () => {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                {automationRules.map((rule) => (
-                  <Card key={rule.id} className="hover:shadow-md transition-shadow">
-                    <CardHeader>
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <CardTitle className="flex items-center">
-                            {rule.name}
-                            <Badge 
-                              variant={rule.status === 'active' ? 'default' : 'secondary'}
-                              className="ml-2"
-                            >
-                              {rule.status}
+              {loadingAutomationRules ? (
+                <div className="text-center text-muted-foreground">Loading rules...</div>
+              ) : (
+                <div className="space-y-4">
+                  {automationRules.length === 0 ? (
+                    <p className="text-center text-muted-foreground">No automation rules configured.</p>
+                  ) : (
+                    automationRules.map((rule) => (
+                      <Card key={rule.id} className="hover:shadow-md transition-shadow">
+                        <CardHeader>
+                          <div className="flex justify-between items-start">
+                            <div>
+                              <CardTitle className="flex items-center">
+                                {rule.name}
+                                <Badge 
+                                  variant={rule.status === 'active' ? 'default' : 'secondary'}
+                                  className="ml-2"
+                                >
+                                  {rule.status}
+                                </Badge>
+                              </CardTitle>
+                              <p className="text-sm text-muted-foreground mt-1">{rule.description}</p>
+                            </div>
+                            <Switch
+                              checked={rule.enabled}
+                              onCheckedChange={() => toggleRule(rule.id)}
+                            />
+                          </div>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="flex flex-wrap gap-2 mb-2">
+                            <Badge variant="outline">
+                              Min Score: {rule.conditions.minScore}
                             </Badge>
-                          </CardTitle>
-                          <p className="text-sm text-muted-foreground mt-1">{rule.description}</p>
-                        </div>
-                        <Switch
-                          checked={rule.enabled}
-                          onCheckedChange={() => toggleRule(rule.id)}
-                        />
-                      </div>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="flex flex-wrap gap-2">
-                        <Badge variant="outline">
-                          Min Score: {rule.conditions.minScore}
-                        </Badge>
-                        <Badge variant="outline">
-                          Type: {rule.conditions.type}
-                        </Badge>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
+                            <Badge variant="outline">
+                              Type: {rule.conditions.type}
+                            </Badge>
+                          </div>
+                          <div className="flex space-x-2">
+                            <Button variant="outline" size="sm" onClick={() => openRuleDialog(rule)}>
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button variant="destructive" size="sm" onClick={() => deleteRule(rule.id, rule.name)}>
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))
+                  )}
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -986,6 +1133,83 @@ const Automation = () => {
           </div>
         </div>
       </div>
+
+      <Dialog open={isRuleDialogOpen} onOpenChange={setIsRuleDialogOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>{editingRule ? 'Edit Automation Rule' : 'Add New Automation Rule'}</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="rule-name" className="text-right">
+                Name
+              </Label>
+              <Input
+                id="rule-name"
+                value={ruleForm.name}
+                onChange={(e) => setRuleForm(prev => ({ ...prev, name: e.target.value }))}
+                className="col-span-3"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="rule-description" className="text-right">
+                Description
+              </Label>
+              <Textarea
+                id="rule-description"
+                value={ruleForm.description}
+                onChange={(e) => setRuleForm(prev => ({ ...prev, description: e.target.value }))}
+                className="col-span-3"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="rule-min-score" className="text-right">
+                Min Score
+              </Label>
+              <Input
+                id="rule-min-score"
+                type="number"
+                value={ruleForm.minScore}
+                onChange={(e) => setRuleForm(prev => ({ ...prev, minScore: parseInt(e.target.value) }))}
+                className="col-span-3"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="rule-type" className="text-right">
+                Signal Type
+              </Label>
+              <Select
+                value={ruleForm.type}
+                onValueChange={(value) => setRuleForm(prev => ({ ...prev, type: value }))}
+              >
+                <SelectTrigger id="rule-type" className="col-span-3">
+                  <SelectValue placeholder="Select signal type" />
+                </SelectTrigger>
+                <SelectContent>
+                  {signalTypes.map(type => (
+                    <SelectItem key={type} value={type}>{type}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="rule-enabled" className="text-right">
+                Enabled
+              </Label>
+              <Switch
+                id="rule-enabled"
+                checked={ruleForm.enabled}
+                onCheckedChange={(checked) => setRuleForm(prev => ({ ...prev, enabled: checked }))}
+                className="col-span-3"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsRuleDialogOpen(false)}>Cancel</Button>
+            <Button onClick={handleSaveRule}>{editingRule ? 'Save Changes' : 'Add Rule'}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

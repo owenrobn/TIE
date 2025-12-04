@@ -4,7 +4,9 @@ import express, { Request, Response } from 'express';
 import { TIEEngine } from '../modules/engine/TIEEngine';
 import { TestnetFaucetManager } from '../modules/automation/TestnetFaucetManager';
 import { DevnetDeployer } from '../modules/automation/DevnetDeployer';
-import { TAEEngine } from '../modules/automation/TAEEngine'; // Import TAEEngine
+import { TAEEngine } from '../modules/automation/TAEEngine';
+import { AutomationEngine } from '../modules/automation/AutomationEngine'; // Import AutomationEngine
+import { EVMAdapter } from '../modules/adapters/EVMAdapter'; // Import EVMAdapter for AutomationEngine
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -12,11 +14,15 @@ const port = process.env.PORT || 3000;
 // Middleware
 app.use(express.json());
 
-// Initialize TIE Engine, TestnetFaucetManager, DevnetDeployer, and TAEEngine
+// Initialize TIE Engine, TestnetFaucetManager, DevnetDeployer, TAEEngine, and AutomationEngine
 const tieEngine = new TIEEngine();
 const faucetManager = new TestnetFaucetManager();
 const devnetDeployer = new DevnetDeployer();
-const taeEngine = new TAEEngine(); // Initialize TAEEngine
+const taeEngine = new TAEEngine();
+
+// Mock EVMAdapter for AutomationEngine constructor
+const mockEVMAdapter = new EVMAdapter('http://localhost:8545', '31337');
+const automationEngine = new AutomationEngine(tieEngine, mockEVMAdapter); // Initialize AutomationEngine
 
 // Routes
 app.get('/api/health', (req: Request, res: Response) => {
@@ -195,7 +201,7 @@ app.post('/api/verify', async (req: Request, res: Response) => {
   }
 });
 
-// New TAE API Routes
+// TAE API Routes
 app.post('/api/tae/signal', async (req: Request, res: Response) => {
   const signature = req.headers['x-mev-signature'] as string;
   if (!signature) {
@@ -229,7 +235,7 @@ app.post('/api/tae/execute/:signalId', (req: Request, res: Response) => {
   }
 });
 
-// New TAE Wallet Management Routes
+// TAE Wallet Management Routes
 app.get('/api/tae/wallets', (req: Request, res: Response) => {
   const wallets = taeEngine.getWallets();
   res.json(wallets);
@@ -262,10 +268,73 @@ app.delete('/api/tae/wallets/:id', (req: Request, res: Response) => {
   }
 });
 
+// Automation Rules API Routes
+app.get('/api/automation/rules', (req: Request, res: Response) => {
+  const rules = automationEngine.getAutomationRules();
+  res.json(rules);
+});
+
+app.post('/api/automation/rules', (req: Request, res: Response) => {
+  const { name, description, enabled, conditions } = req.body;
+  if (!name || !description || conditions === undefined) {
+    return res.status(400).json({ success: false, message: 'Name, description, and conditions are required.' });
+  }
+  try {
+    const newRule = automationEngine.addRule({ name, description, enabled: enabled ?? false, conditions });
+    res.status(201).json({ success: true, message: 'Automation rule added successfully.', rule: newRule });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message || 'Failed to add automation rule.' });
+  }
+});
+
+app.put('/api/automation/rules/:id', (req: Request, res: Response) => {
+  const { id } = req.params;
+  const updates = req.body;
+  try {
+    const updatedRule = automationEngine.updateRule(id, updates);
+    if (updatedRule) {
+      res.json({ success: true, message: `Automation rule ${id} updated successfully.`, rule: updatedRule });
+    } else {
+      res.status(404).json({ success: false, message: `Automation rule ${id} not found.` });
+    }
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message || 'Failed to update automation rule.' });
+  }
+});
+
+app.post('/api/automation/rules/:id/toggle', (req: Request, res: Response) => {
+  const { id } = req.params;
+  try {
+    const toggledRule = automationEngine.toggleRule(id);
+    if (toggledRule) {
+      res.json({ success: true, message: `Automation rule ${id} toggled successfully.`, rule: toggledRule });
+    } else {
+      res.status(404).json({ success: false, message: `Automation rule ${id} not found.` });
+    }
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message || 'Failed to toggle automation rule.' });
+  }
+});
+
+app.delete('/api/automation/rules/:id', (req: Request, res: Response) => {
+  const { id } = req.params;
+  try {
+    const success = automationEngine.deleteRule(id);
+    if (success) {
+      res.json({ success: true, message: `Automation rule ${id} deleted successfully.` });
+    } else {
+      res.status(404).json({ success: false, message: `Automation rule ${id} not found.` });
+    }
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message || 'Failed to delete automation rule.' });
+  }
+});
+
 
 // Start the engines
 tieEngine.start().catch(console.error);
-taeEngine.start().catch(console.error); // Start TAE Engine
+taeEngine.start().catch(console.error);
+automationEngine.start().catch(console.error); // Start Automation Engine
 
 // Start the server
 app.listen(port, () => {

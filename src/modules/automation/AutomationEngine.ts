@@ -2,13 +2,26 @@
 import { TIEEngine } from '../engine/TIEEngine';
 import { EVMAdapter } from '../adapters/EVMAdapter';
 import { SimulationEngine } from '../simulation/SimulationEngine';
+import { v4 as uuidv4 } from 'uuid'; // Import uuid for unique IDs
+
+interface AutomationRule {
+  id: string;
+  name: string;
+  description: string;
+  enabled: boolean;
+  conditions: {
+    minScore: number;
+    type: string;
+  };
+  status: 'active' | 'inactive'; // Added status for UI consistency
+}
 
 export class AutomationEngine {
   private tieEngine: TIEEngine;
   private evmAdapter: EVMAdapter;
   private simulationEngine: SimulationEngine;
   private running: boolean;
-  private automationRules: any[];
+  private automationRules: AutomationRule[];
 
   constructor(tieEngine: TIEEngine, evmAdapter: EVMAdapter) {
     this.tieEngine = tieEngine;
@@ -17,34 +30,48 @@ export class AutomationEngine {
     this.running = false;
     this.automationRules = [
       {
-        id: 'auto-claim-rewards',
+        id: uuidv4(),
         name: 'Auto Claim Rewards',
         description: 'Automatically claim staking rewards when above threshold',
         enabled: true,
         conditions: {
           minScore: 80,
           type: 'Staking Reward Spike'
-        }
+        },
+        status: 'active'
       },
       {
-        id: 'auto-participate-governance',
+        id: uuidv4(),
         name: 'Auto Participate Governance',
         description: 'Automatically participate in governance proposals',
         enabled: false,
         conditions: {
           minScore: 70,
           type: 'Governance Activity'
-        }
+        },
+        status: 'inactive'
       },
       {
-        id: 'auto-bridge-assets',
+        id: uuidv4(),
         name: 'Auto Bridge Assets',
         description: 'Automatically bridge assets for cross-chain opportunities',
         enabled: false,
         conditions: {
           minScore: 75,
           type: 'Bridge Event'
-        }
+        },
+        status: 'inactive'
+      },
+      {
+        id: uuidv4(),
+        name: 'Auto Liquidity Provision',
+        description: 'Automatically provide liquidity for new pools',
+        enabled: true,
+        conditions: {
+          minScore: 85,
+          type: 'Liquidity Event'
+        },
+        status: 'active'
       }
     ];
   }
@@ -141,7 +168,7 @@ export class AutomationEngine {
     }
   }
 
-  private matchesRule(signal: any, rule: any): boolean {
+  private matchesRule(signal: any, rule: AutomationRule): boolean {
     // Check signal type
     if (rule.conditions.type && signal.type !== rule.conditions.type) {
       return false;
@@ -155,7 +182,7 @@ export class AutomationEngine {
     return true;
   }
 
-  private async executeAutomation(signal: any, rule: any): Promise<void> {
+  private async executeAutomation(signal: any, rule: AutomationRule): Promise<void> {
     try {
       console.log(`Executing automation for signal ${signal.id} with rule ${rule.name}`);
 
@@ -172,6 +199,9 @@ export class AutomationEngine {
           break;
         case 'auto-bridge-assets':
           await this.bridgeAssets(signal);
+          break;
+        case 'auto-liquidity-provision':
+          await this.provideLiquidity(signal);
           break;
         default:
           console.log('Unknown automation rule, skipping execution');
@@ -225,26 +255,65 @@ export class AutomationEngine {
     console.log('Assets bridged successfully');
   }
 
-  getAutomationRules(): any[] {
+  private async provideLiquidity(signal: any): Promise<void> {
+    console.log(`Providing liquidity for new pool on ${signal.chain} for contract ${signal.contract}`);
+    // Simulate the process
+    await new Promise(resolve => setTimeout(resolve, 2500));
+    console.log('Liquidity provided successfully');
+  }
+
+  getAutomationRules(): AutomationRule[] {
     return this.automationRules;
   }
 
-  toggleRule(ruleId: string): void {
+  getAutomationRuleById(ruleId: string): AutomationRule | undefined {
+    return this.automationRules.find(r => r.id === ruleId);
+  }
+
+  addRule(newRule: Omit<AutomationRule, 'id' | 'status'>): AutomationRule {
+    const rule: AutomationRule = {
+      id: uuidv4(),
+      ...newRule,
+      status: newRule.enabled ? 'active' : 'inactive'
+    };
+    this.automationRules.push(rule);
+    console.log(`Automation rule ${rule.name} added.`);
+    return rule;
+  }
+
+  updateRule(ruleId: string, updates: Partial<Omit<AutomationRule, 'id'>>): AutomationRule | undefined {
+    const ruleIndex = this.automationRules.findIndex(r => r.id === ruleId);
+    if (ruleIndex !== -1) {
+      const updatedRule = {
+        ...this.automationRules[ruleIndex],
+        ...updates,
+        status: updates.enabled !== undefined ? (updates.enabled ? 'active' : 'inactive') : this.automationRules[ruleIndex].status
+      };
+      this.automationRules[ruleIndex] = updatedRule;
+      console.log(`Automation rule ${ruleId} updated`);
+      return updatedRule;
+    }
+    return undefined;
+  }
+
+  toggleRule(ruleId: string): AutomationRule | undefined {
     const rule = this.automationRules.find(r => r.id === ruleId);
     if (rule) {
       rule.enabled = !rule.enabled;
+      rule.status = rule.enabled ? 'active' : 'inactive';
       console.log(`Automation rule ${rule.name} is now ${rule.enabled ? 'enabled' : 'disabled'}`);
+      return rule;
     }
+    return undefined;
   }
 
-  updateRule(ruleId: string, updates: any): void {
-    const ruleIndex = this.automationRules.findIndex(r => r.id === ruleId);
-    if (ruleIndex !== -1) {
-      this.automationRules[ruleIndex] = {
-        ...this.automationRules[ruleIndex],
-        ...updates
-      };
-      console.log(`Automation rule ${ruleId} updated`);
+  deleteRule(ruleId: string): boolean {
+    const initialLength = this.automationRules.length;
+    this.automationRules = this.automationRules.filter(r => r.id !== ruleId);
+    if (this.automationRules.length < initialLength) {
+      console.log(`Automation rule ${ruleId} deleted.`);
+      return true;
     }
+    return false;
   }
 }
