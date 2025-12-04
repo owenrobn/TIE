@@ -4,83 +4,83 @@
 
 @layer base {
   :root {
-    --background: 30 20% 98%; /* Light beige/brown */
-    --foreground: 120 10% 15%; /* Dark green-brown */
+    --background: 30 40% 95%; /* Soft, warm light brown */
+    --foreground: 120 40% 15%; /* Deep forest green */
 
-    --card: 30 20% 100%;
-    --card-foreground: 120 10% 15%;
+    --card: 30 40% 100%;
+    --card-foreground: 120 40% 15%;
 
-    --popover: 30 20% 100%;
-    --popover-foreground: 120 10% 15%;
+    --popover: 30 40% 100%;
+    --popover-foreground: 120 40% 15%;
 
-    --primary: 120 60% 30%; /* Technoverse Green */
+    --primary: 120 70% 30%; /* Vibrant, deep green */
     --primary-foreground: 0 0% 98%; /* Off-white */
 
-    --secondary: 30 20% 90%; /* Muted light brown */
-    --secondary-foreground: 120 10% 15%;
+    --secondary: 30 25% 85%; /* Muted, slightly darker light brown */
+    --secondary-foreground: 120 40% 15%;
 
-    --muted: 30 20% 90%;
-    --muted-foreground: 120 5% 45%;
+    --muted: 30 25% 85%;
+    --muted-foreground: 120 15% 40%; /* Softer green-brown */
 
-    --accent: 120 30% 80%; /* Lighter green accent */
-    --accent-foreground: 120 10% 15%;
+    --accent: 120 50% 70%; /* Brighter, dynamic green accent */
+    --accent-foreground: 120 40% 15%;
 
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 98%;
 
-    --border: 30 15% 85%; /* Light brown border */
-    --input: 30 15% 85%;
-    --ring: 120 60% 30%; /* Primary green ring */
+    --border: 30 20% 75%; /* Medium brown border */
+    --input: 30 20% 75%;
+    --ring: 120 70% 30%; /* Primary green ring */
 
     --radius: 0.5rem;
 
-    --sidebar-background: 30 20% 95%; /* Slightly darker beige for sidebar */
-    --sidebar-foreground: 120 10% 20%;
-    --sidebar-primary: 120 60% 30%;
+    --sidebar-background: 30 40% 90%; /* Slightly darker warm brown for sidebar */
+    --sidebar-foreground: 120 40% 10%;
+    --sidebar-primary: 120 70% 25%; /* Even deeper primary green for sidebar active */
     --sidebar-primary-foreground: 0 0% 98%;
-    --sidebar-accent: 120 30% 85%;
-    --sidebar-accent-foreground: 120 10% 15%;
-    --sidebar-border: 30 15% 80%;
-    --sidebar-ring: 120 60% 30%;
+    --sidebar-accent: 120 50% 75%;
+    --sidebar-accent-foreground: 120 40% 15%;
+    --sidebar-border: 30 20% 70%;
+    --sidebar-ring: 120 70% 30%;
   }
 
   .dark {
-    --background: 120 10% 10%; /* Dark green-brown */
-    --foreground: 30 20% 90%; /* Light beige/brown */
+    --background: 120 20% 8%; /* Very deep, dark forest green */
+    --foreground: 30 40% 90%; /* Warm, light brown */
 
-    --card: 120 10% 12%;
-    --card-foreground: 30 20% 90%;
+    --card: 120 20% 12%;
+    --card-foreground: 30 40% 90%;
 
-    --popover: 120 10% 12%;
-    --popover-foreground: 30 20% 90%;
+    --popover: 120 20% 12%;
+    --popover-foreground: 30 40% 90%;
 
-    --primary: 120 50% 40%; /* Technoverse Green (darker) */
+    --primary: 120 60% 45%; /* Vibrant, slightly lighter green for dark mode primary */
     --primary-foreground: 0 0% 98%;
 
-    --secondary: 120 10% 20%; /* Muted dark green */
-    --secondary-foreground: 30 20% 90%;
+    --secondary: 120 15% 20%; /* Muted dark green */
+    --secondary-foreground: 30 40% 90%;
 
-    --muted: 120 10% 20%;
-    --muted-foreground: 30 5% 60%;
+    --muted: 120 15% 20%;
+    --muted-foreground: 30 15% 60%; /* Softer light brown */
 
-    --accent: 120 20% 25%; /* Darker green accent */
-    --accent-foreground: 30 20% 90%;
+    --accent: 120 30% 30%; /* Medium dark green accent */
+    --accent-foreground: 30 40% 90%;
 
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 0 0% 98%;
 
-    --border: 120 10% 25%; /* Dark green border */
-    --input: 120 10% 25%;
-    --ring: 120 50% 40%; /* Primary green ring */
+    --border: 120 15% 25%; /* Dark green border */
+    --input: 120 15% 25%;
+    --ring: 120 60% 45%; /* Primary green ring */
 
-    --sidebar-background: 120 10% 8%; /* Even darker green for sidebar */
-    --sidebar-foreground: 30 20% 95%;
-    --sidebar-primary: 120 50% 40%;
+    --sidebar-background: 120 20% 5%; /* Even deeper dark green for sidebar */
+    --sidebar-foreground: 30 40% 95%;
+    --sidebar-primary: 120 60% 40%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 120 20% 18%;
-    --sidebar-accent-foreground: 30 20% 95%;
-    --sidebar-border: 120 10% 18%;
-    --sidebar-ring: 120 50% 40%;
+    --sidebar-accent: 120 30% 25%;
+    --sidebar-accent-foreground: 30 40% 95%;
+    --sidebar-border: 120 15% 18%;
+    --sidebar-ring: 120 60% 40%;
   }
 }
 
