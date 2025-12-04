@@ -13,6 +13,7 @@ services:
       - DB_NAME=tie_db
       - DB_USER=tie_user
       - DB_PASSWORD=tie_password
+      - ETHERSCAN_API_KEY=${ETHERSCAN_API_KEY} # Add Etherscan API Key
     volumes:
       - ./data:/app/data
     depends_on:

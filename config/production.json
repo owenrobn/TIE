@@ -27,6 +27,7 @@
     "webhookSecret": "${WEBHOOK_SECRET}",
     "enableHMAC": true,
     "taeWebhookUrl": "http://tie-engine:8080/api/tae/signal",
-    "taeReportingWebhookUrl": "${TAE_REPORTING_WEBHOOK_URL}"
+    "taeReportingWebhookUrl": "${TAE_REPORTING_WEBHOOK_URL}",
+    "etherscanApiKey": "${ETHERSCAN_API_KEY}"
   }
 }

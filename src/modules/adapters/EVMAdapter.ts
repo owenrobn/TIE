@@ -4,9 +4,11 @@ import { ethers } from 'ethers';
 
 export class EVMAdapter extends ChainAdapter {
   private provider: ethers.JsonRpcProvider;
+  private etherscanApiKey: string;
 
-  constructor(rpcUrl: string, chainId: string) {
+  constructor(rpcUrl: string, chainId: string, etherscanApiKey: string) {
     super(rpcUrl, chainId);
+    this.etherscanApiKey = etherscanApiKey;
     this.provider = new ethers.JsonRpcProvider(rpcUrl);
     console.log(`EVMAdapter initialized for chain ${this.chainId} with RPC: ${this.rpcUrl}`);
   }
@@ -35,11 +37,38 @@ export class EVMAdapter extends ChainAdapter {
   }
 
   async getContractABI(address: string): Promise<any> {
-    // Implementation for fetching contract ABI
-    console.log(`Fetching ABI for contract ${address} on ${this.chainId} (simulated)`);
-    // In a real implementation, this would query a blockchain explorer API (e.g., Etherscan)
-    // as ABIs are not directly available via standard RPC calls.
-    return {}; // Return empty ABI for demo
+    console.log(`Fetching ABI for contract ${address} on ${this.chainId} from Etherscan-like API`);
+    
+    const etherscanBaseUrls: { [key: string]: string } = {
+      '11155111': 'https://api-sepolia.etherscan.io/api', // Ethereum Sepolia
+      '421614': 'https://api-sepolia.arbiscan.io/api',   // Arbitrum Sepolia
+      '11155420': 'https://api-sepolia.optimistic.etherscan.io/api', // Optimism Sepolia
+      '84532': 'https://api-sepolia.basescan.org/api',   // Base Sepolia
+      // Add other chain IDs and their Etherscan-like URLs as needed
+    };
+
+    const baseUrl = etherscanBaseUrls[this.chainId];
+
+    if (!baseUrl) {
+      console.warn(`No Etherscan-like API URL configured for chainId: ${this.chainId}. Returning empty ABI.`);
+      return [];
+    }
+
+    try {
+      const url = `${baseUrl}?module=contract&action=getabi&address=${address}&apikey=${this.etherscanApiKey}`;
+      const response = await fetch(url);
+      const data = await response.json();
+
+      if (data.status === '1' && data.result) {
+        return JSON.parse(data.result);
+      } else {
+        console.error(`Failed to fetch ABI for ${address}: ${data.result}`);
+        return [];
+      }
+    } catch (error) {
+      console.error(`Error fetching ABI for ${address}:`, error);
+      return [];
+    }
   }
 
   async getBalance(address: string): Promise<string> {

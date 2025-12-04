@@ -28,6 +28,7 @@ export class TIEEngine {
   private chainAdapters: Map<string, EVMAdapter>;
   private running: boolean;
   private databaseService: DatabaseService; // Add DatabaseService
+  private etherscanApiKey: string; // Store Etherscan API key
 
   constructor(databaseService: DatabaseService) {
     this.databaseService = databaseService;
@@ -37,11 +38,14 @@ export class TIEEngine {
     this.scoringEngine = new ScoringEngine();
     
     const securityConfig = config.get('security') as any;
+    this.etherscanApiKey = securityConfig.etherscanApiKey || process.env.ETHERSCAN_API_KEY || 'YOUR_ETHERSCAN_API_KEY'; // Get API key from config or env
+
     this.signalDispatcher = new SignalDispatcher(
       securityConfig.taeWebhookUrl, // Use configured TAE webhook URL
       securityConfig.webhookSecret || 'your-webhook-secret'
     );
-    this.contractFingerprinter = new ContractFingerprinter();
+    // Initialize ContractFingerprinter without an adapter initially, will be set in initializeChainAdapters
+    this.contractFingerprinter = new ContractFingerprinter(); 
     this.chainAdapters = new Map();
     this.running = false;
 
@@ -52,28 +56,49 @@ export class TIEEngine {
     const chainsConfig = config.get('chains') as any;
 
     if (chainsConfig.ethereum) {
-      this.chainAdapters.set('ethereum-sepolia', new EVMAdapter(
+      const adapter = new EVMAdapter(
         chainsConfig.ethereum.rpc,
-        chainsConfig.ethereum.chainId
-      ));
+        chainsConfig.ethereum.chainId,
+        this.etherscanApiKey
+      );
+      this.chainAdapters.set('ethereum-sepolia', adapter);
+      // Set the EVMAdapter for the ContractFingerprinter if it's the first one
+      if (!this.contractFingerprinter['evmAdapter']) { // Access private property for now
+        this.contractFingerprinter = new ContractFingerprinter(adapter);
+      }
     }
     if (chainsConfig.arbitrum) {
-      this.chainAdapters.set('arbitrum-sepolia', new EVMAdapter(
+      const adapter = new EVMAdapter(
         chainsConfig.arbitrum.rpc,
-        chainsConfig.arbitrum.chainId
-      ));
+        chainsConfig.arbitrum.chainId,
+        this.etherscanApiKey
+      );
+      this.chainAdapters.set('arbitrum-sepolia', adapter);
+      if (!this.contractFingerprinter['evmAdapter']) {
+        this.contractFingerprinter = new ContractFingerprinter(adapter);
+      }
     }
     if (chainsConfig.optimism) {
-      this.chainAdapters.set('optimism-sepolia', new EVMAdapter(
+      const adapter = new EVMAdapter(
         chainsConfig.optimism.rpc,
-        chainsConfig.optimism.chainId
-      ));
+        chainsConfig.optimism.chainId,
+        this.etherscanApiKey
+      );
+      this.chainAdapters.set('optimism-sepolia', adapter);
+      if (!this.contractFingerprinter['evmAdapter']) {
+        this.contractFingerprinter = new ContractFingerprinter(adapter);
+      }
     }
     if (chainsConfig.base) {
-      this.chainAdapters.set('base-sepolia', new EVMAdapter(
+      const adapter = new EVMAdapter(
         chainsConfig.base.rpc,
-        chainsConfig.base.chainId
-      ));
+        chainsConfig.base.chainId,
+        this.etherscanApiKey
+      );
+      this.chainAdapters.set('base-sepolia', adapter);
+      if (!this.contractFingerprinter['evmAdapter']) {
+        this.contractFingerprinter = new ContractFingerprinter(adapter);
+      }
     }
   }
 
@@ -180,10 +205,11 @@ export class TIEEngine {
     let fingerprint = null;
     if (detection.address || detection.contract) {
       const address = detection.address || detection.contract;
+      // Pass the chain ID to the fingerprinting engine if needed, or ensure the adapter is chain-specific
       fingerprint = await this.contractFingerprinter.fingerprintContract(
         address,
         '', 
-        {}  
+        null // Pass null for ABI, so the fingerprinter attempts to fetch it
       );
     }
 
