@@ -3,20 +3,32 @@ import { ChainAdapter } from './ChainAdapter';
 import { ethers } from 'ethers';
 
 export class EVMAdapter extends ChainAdapter {
-  private provider: ethers.JsonRpcProvider;
+  private provider: ethers.Provider; // Changed to generic Provider
   private etherscanApiKey: string;
+  private wsRpcUrl: string | undefined; // New property for WebSocket RPC
 
-  constructor(rpcUrl: string, chainId: string, etherscanApiKey: string) {
+  constructor(rpcUrl: string, chainId: string, etherscanApiKey: string, wsRpcUrl?: string) {
     super(rpcUrl, chainId);
     this.etherscanApiKey = etherscanApiKey;
-    this.provider = new ethers.JsonRpcProvider(rpcUrl);
-    console.log(`EVMAdapter initialized for chain ${this.chainId} with RPC: ${this.rpcUrl}`);
+    this.wsRpcUrl = wsRpcUrl;
+
+    if (this.wsRpcUrl) {
+      try {
+        this.provider = new ethers.WebSocketProvider(this.wsRpcUrl);
+        console.log(`EVMAdapter initialized for chain ${this.chainId} with WebSocket RPC: ${this.wsRpcUrl}`);
+      } catch (error) {
+        console.warn(`Failed to connect to WebSocket RPC ${this.wsRpcUrl}. Falling back to JSON-RPC.`, error);
+        this.provider = new ethers.JsonRpcProvider(rpcUrl);
+        console.log(`EVMAdapter initialized for chain ${this.chainId} with JSON-RPC: ${this.rpcUrl}`);
+      }
+    } else {
+      this.provider = new ethers.JsonRpcProvider(rpcUrl);
+      console.log(`EVMAdapter initialized for chain ${this.chainId} with JSON-RPC: ${this.rpcUrl}`);
+    }
   }
 
   subscribeBlocks(callback: (block: any) => void): void {
-    console.log(`Subscribing to blocks on ${this.chainId} (using polling for JsonRpcProvider)`);
-    // Note: For real-time block subscriptions, a WebSocketProvider is generally preferred.
-    // JsonRpcProvider will poll for new blocks.
+    console.log(`Subscribing to blocks on ${this.chainId}`);
     this.provider.on('block', async (blockNumber: number) => {
       try {
         const block = await this.provider.getBlock(blockNumber);
@@ -30,10 +42,26 @@ export class EVMAdapter extends ChainAdapter {
   }
 
   subscribeEvents(callback: (event: any) => void): void {
-    console.log(`Subscribing to events on ${this.chainId} (placeholder - real-time event subscriptions are complex)`);
-    // Real-time event subscriptions often require specific contract ABIs and event filters,
-    // or a WebSocketProvider. This is a placeholder for future, more detailed implementation.
-    // For now, consider using fetchLogs with a polling mechanism for specific events.
+    if (this.provider instanceof ethers.WebSocketProvider) {
+      console.log(`Subscribing to all contract events on ${this.chainId} via WebSocket.`);
+      // This will listen to ALL events emitted on the blockchain.
+      // In a real application, you would typically filter for specific contract addresses or event topics.
+      this.provider.on('event', (log: ethers.EventLog) => {
+        callback({
+          blockNumber: log.blockNumber,
+          transactionHash: log.transactionHash,
+          address: log.address,
+          topics: log.topics,
+          data: log.data,
+          logIndex: log.logIndex,
+          eventName: log.eventName, // If ABI is known and event is parsed
+          args: log.args, // If ABI is known and event is parsed
+        });
+      });
+    } else {
+      console.warn(`Cannot subscribe to real-time events on ${this.chainId}: No WebSocketProvider available. Use fetchLogs with polling instead.`);
+      // Fallback for JSON-RPC provider: suggest polling fetchLogs
+    }
   }
 
   async getContractABI(address: string): Promise<any> {

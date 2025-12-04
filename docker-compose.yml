@@ -14,6 +14,10 @@ services:
       - DB_USER=tie_user
       - DB_PASSWORD=tie_password
       - ETHERSCAN_API_KEY=${ETHERSCAN_API_KEY} # Add Etherscan API Key
+      - ETHEREUM_WS_RPC_URL=${ETHEREUM_WS_RPC_URL} # Add Ethereum WS RPC URL
+      - ARBITRUM_WS_RPC_URL=${ARBITRUM_WS_RPC_URL} # Add Arbitrum WS RPC URL
+      - OPTIMISM_WS_RPC_URL=${OPTIMISM_WS_RPC_URL} # Add Optimism WS RPC URL
+      - BASE_WS_RPC_URL=${BASE_WS_RPC_URL} # Add Base WS RPC URL
     volumes:
       - ./data:/app/data
     depends_on:

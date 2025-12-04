@@ -11,16 +11,20 @@
   },
   "chains": {
     "ethereum": {
-      "rpc": "${ETHEREUM_RPC_URL}"
+      "rpc": "${ETHEREUM_RPC_URL}",
+      "wsRpc": "${ETHEREUM_WS_RPC_URL}"
     },
     "arbitrum": {
-      "rpc": "${ARBITRUM_RPC_URL}"
+      "rpc": "${ARBITRUM_RPC_URL}",
+      "wsRpc": "${ARBITRUM_WS_RPC_URL}"
     },
     "optimism": {
-      "rpc": "${OPTIMISM_RPC_URL}"
+      "rpc": "${OPTIMISM_RPC_URL}",
+      "wsRpc": "${OPTIMISM_WS_RPC_URL}"
     },
     "base": {
-      "rpc": "${BASE_RPC_URL}"
+      "rpc": "${BASE_RPC_URL}",
+      "wsRpc": "${BASE_WS_RPC_URL}"
     }
   },
   "security": {

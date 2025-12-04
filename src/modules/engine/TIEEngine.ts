@@ -59,7 +59,8 @@ export class TIEEngine {
       const adapter = new EVMAdapter(
         chainsConfig.ethereum.rpc,
         chainsConfig.ethereum.chainId,
-        this.etherscanApiKey
+        this.etherscanApiKey,
+        chainsConfig.ethereum.wsRpc // Pass wsRpcUrl
       );
       this.chainAdapters.set('ethereum-sepolia', adapter);
       // Set the EVMAdapter for the ContractFingerprinter if it's the first one
@@ -71,7 +72,8 @@ export class TIEEngine {
       const adapter = new EVMAdapter(
         chainsConfig.arbitrum.rpc,
         chainsConfig.arbitrum.chainId,
-        this.etherscanApiKey
+        this.etherscanApiKey,
+        chainsConfig.arbitrum.wsRpc // Pass wsRpcUrl
       );
       this.chainAdapters.set('arbitrum-sepolia', adapter);
       if (!this.contractFingerprinter['evmAdapter']) {
@@ -82,7 +84,8 @@ export class TIEEngine {
       const adapter = new EVMAdapter(
         chainsConfig.optimism.rpc,
         chainsConfig.optimism.chainId,
-        this.etherscanApiKey
+        this.etherscanApiKey,
+        chainsConfig.optimism.wsRpc // Pass wsRpcUrl
       );
       this.chainAdapters.set('optimism-sepolia', adapter);
       if (!this.contractFingerprinter['evmAdapter']) {
@@ -93,7 +96,8 @@ export class TIEEngine {
       const adapter = new EVMAdapter(
         chainsConfig.base.rpc,
         chainsConfig.base.chainId,
-        this.etherscanApiKey
+        this.etherscanApiKey,
+        chainsConfig.base.wsRpc // Pass wsRpcUrl
       );
       this.chainAdapters.set('base-sepolia', adapter);
       if (!this.contractFingerprinter['evmAdapter']) {

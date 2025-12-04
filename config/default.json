@@ -18,18 +18,22 @@
   "chains": {
     "ethereum": {
       "rpc": "https://eth-sepolia.g.alchemy.com/v2/your-api-key",
+      "wsRpc": "wss://eth-sepolia.g.alchemy.com/v2/your-api-key",
       "chainId": "11155111"
     },
     "arbitrum": {
       "rpc": "https://arb-sepolia.g.alchemy.com/v2/your-api-key",
+      "wsRpc": "wss://arb-sepolia.g.alchemy.com/v2/your-api-key",
       "chainId": "421614"
     },
     "optimism": {
       "rpc": "https://opt-sepolia.g.alchemy.com/v2/your-api-key",
+      "wsRpc": "wss://opt-sepolia.g.alchemy.com/v2/your-api-key",
       "chainId": "11155420"
     },
     "base": {
       "rpc": "https://base-sepolia.g.alchemy.com/v2/your-api-key",
+      "wsRpc": "wss://base-sepolia.g.alchemy.com/v2/your-api-key",
       "chainId": "84532"
     }
   },
