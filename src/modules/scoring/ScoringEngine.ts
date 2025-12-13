@@ -2,24 +2,29 @@
 export class ScoringEngine {
   calculateScore(signal: any): number {
     // Implementation of the scoring formula:
-    // final_score = 0.35*reward_depth + 0.25*urgency + 0.20*confidence - 0.10*sybil_risk - 0.10*capital_requirement
+    // final_score = 0.4 * rewardScore + 0.25 * urgencyScore + 0.2 * confidenceScore - 0.15 * sybilRisk
     
-    const reward_depth = this.calculateRewardDepth(signal);
-    const urgency = this.calculateUrgency(signal);
-    const confidence = signal.confidence || 0.5; // Use provided confidence or default
-    const sybil_risk = this.calculateSybilRisk(signal);
-    const capital_requirement = this.calculateCapitalRequirement(signal);
+    const rewardScore = this.calculateRewardDepth(signal);
+    const urgencyScore = this.calculateUrgency(signal);
+    const confidenceScore = this.calculateConfidence(signal);
+    const sybilRisk = this.calculateSybilRisk(signal);
     
-    const score = (
-      0.35 * reward_depth +
-      0.25 * urgency +
-      0.20 * confidence -
-      0.10 * sybil_risk -
-      0.10 * capital_requirement
-    ) * 100; // Scale to 0-100
+    // Apply the weighted formula
+    const rawScore = (
+      0.40 * rewardScore +
+      0.25 * urgencyScore +
+      0.20 * confidenceScore -
+      0.15 * sybilRisk
+    );
+    
+    // Scale the raw score (which ranges from -0.15 to 0.85) to 0-100
+    // (rawScore - min_possible_raw_score) / (max_possible_raw_score - min_possible_raw_score) * 100
+    // min_possible_raw_score = 0.4*0 + 0.25*0 + 0.2*0 - 0.15*1 = -0.15
+    // max_possible_raw_score = 0.4*1 + 0.25*1 + 0.2*1 - 0.15*0 = 0.85
+    const scaledScore = (rawScore + 0.15) * 100;
     
     // Ensure score is between 0 and 100
-    return Math.max(0, Math.min(100, Math.round(score)));
+    return Math.max(0, Math.min(100, Math.round(scaledScore)));
   }
 
   calculateRewardDepth(signal: any): number {
