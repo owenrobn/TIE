@@ -1,11 +1,34 @@
 // EVMAdapter.ts
 import { ChainAdapter } from './ChainAdapter';
 import { ethers } from 'ethers';
+import { v4 as generateUuid } from 'uuid';
+
+/**
+ * Represents a normalized blockchain event.
+ */
+interface NormalizedEvent {
+  chainId: string;
+  blockNumber: number;
+  txHash: string;
+  contractAddress: string;
+  eventName: string;
+  decodedArgs: { [key: string]: any };
+  timestamp: number; // Unix timestamp in milliseconds
+}
 
 export class EVMAdapter extends ChainAdapter {
-  private provider: ethers.Provider; // Changed to generic Provider
+  private provider: ethers.Provider;
   private etherscanApiKey: string;
-  private wsRpcUrl: string | undefined; // New property for WebSocket RPC
+  private wsRpcUrl: string | undefined;
+
+  // Internal state for managing subscriptions and polling
+  private blockListener: ((blockNumber: number) => Promise<void>) | null = null;
+  private allEventListener: ((log: ethers.EventLog) => Promise<void>) | null = null;
+  private filteredEventListeners: Map<string, (log: ethers.EventLog) => Promise<void>> = new Map();
+
+  private eventPollingIntervals: Map<string, NodeJS.Timeout> = new Map();
+  private lastProcessedBlockNumbers: Map<string, number> = new Map();
+  private eventPollingRate = 5000; // Poll every 5 seconds for JSON-RPC
 
   constructor(rpcUrl: string, chainId: string, etherscanApiKey: string, wsRpcUrl?: string) {
     super(rpcUrl, chainId);
@@ -27,9 +50,45 @@ export class EVMAdapter extends ChainAdapter {
     }
   }
 
+  /**
+   * Verifies the connection to the blockchain.
+   * @returns A promise that resolves when connected, or rejects on failure.
+   */
+  async connect(): Promise<void> {
+    try {
+      await this.provider.getNetwork();
+      console.log(`EVMAdapter connected to chain ${this.chainId}`);
+    } catch (error) {
+      console.error(`Failed to connect to chain ${this.chainId}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Retrieves the current block number of the connected chain.
+   * @returns A promise that resolves with the current block number.
+   */
+  async getBlockNumber(): Promise<number> {
+    try {
+      return await this.provider.getBlockNumber();
+    } catch (error) {
+      console.error(`Failed to get block number on ${this.chainId}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Subscribes to new blocks on the blockchain.
+   * This method starts a continuous subscription and does not return a cleanup function,
+   * as per the ChainAdapter abstract class signature.
+   * @param callback The function to call with each new block.
+   */
   subscribeBlocks(callback: (block: any) => void): void {
+    if (this.blockListener) {
+      this.provider.off('block', this.blockListener);
+    }
     console.log(`Subscribing to blocks on ${this.chainId}`);
-    this.provider.on('block', async (blockNumber: number) => {
+    this.blockListener = async (blockNumber: number) => {
       try {
         const block = await this.provider.getBlock(blockNumber);
         if (block) {
@@ -38,33 +97,132 @@ export class EVMAdapter extends ChainAdapter {
       } catch (error) {
         console.error(`Error fetching block ${blockNumber}:`, error);
       }
-    });
+    };
+    this.provider.on('block', this.blockListener);
   }
 
-  subscribeEvents(callback: (event: any) => void): void {
+  /**
+   * Subscribes to all new events on the blockchain.
+   * Normalizes events into a standard format.
+   * This method starts a continuous subscription and does not return a cleanup function,
+   * as per the ChainAdapter abstract class signature.
+   * @param callback The function to call with each new normalized event.
+   */
+  subscribeEvents(callback: (event: NormalizedEvent) => void): void {
+    const subscriptionId = 'all-events'; // Fixed ID for the general subscription
+
+    // Clear any previous 'all-events' subscription
+    if (this.allEventListener) {
+      this.provider.off('event', this.allEventListener);
+    }
+    this.stopEventPolling(subscriptionId);
+
     if (this.provider instanceof ethers.WebSocketProvider) {
       console.log(`Subscribing to all contract events on ${this.chainId} via WebSocket.`);
-      // This will listen to ALL events emitted on the blockchain.
-      // In a real application, you would typically filter for specific contract addresses or event topics.
-      this.provider.on('event', (log: ethers.EventLog) => {
-        callback({
-          blockNumber: log.blockNumber,
-          transactionHash: log.transactionHash,
-          address: log.address,
-          topics: log.topics,
-          data: log.data,
-          logIndex: log.logIndex,
-          eventName: log.eventName, // If ABI is known and event is parsed
-          args: log.args, // If ABI is known and event is parsed
-        });
-      });
+      this.allEventListener = async (log: ethers.EventLog) => {
+        try {
+          const block = await this.provider.getBlock(log.blockNumber);
+          const timestamp = block ? block.timestamp * 1000 : Date.now();
+
+          let eventName = 'UnknownEvent';
+          let decodedArgs: { [key: string]: any } = {};
+
+          const abi = await this.getContractABI(log.address);
+          if (abi && abi.length > 0) {
+            const decoded = this.decodeEventLog(log, abi);
+            if (decoded) {
+              eventName = decoded.eventName;
+              decodedArgs = decoded.decodedArgs;
+            }
+          }
+
+          const normalizedEvent: NormalizedEvent = {
+            chainId: this.chainId,
+            blockNumber: log.blockNumber,
+            txHash: log.transactionHash,
+            contractAddress: log.address,
+            eventName,
+            decodedArgs,
+            timestamp
+          };
+          callback(normalizedEvent);
+        } catch (error) {
+          console.error(`Error processing WebSocket event log for ${subscriptionId}:`, error);
+        }
+      };
+      this.provider.on('event', this.allEventListener);
     } else {
-      console.warn(`Cannot subscribe to real-time events on ${this.chainId}: No WebSocketProvider available. Use fetchLogs with polling instead.`);
-      // Fallback for JSON-RPC provider: suggest polling fetchLogs
+      console.log(`Starting polling for all events on ${this.chainId} (JSON-RPC).`);
+      this.startEventPolling(subscriptionId, callback);
     }
   }
 
-  async getContractABI(address: string): Promise<any> {
+  /**
+   * Subscribes to new events matching a specific filter on the blockchain.
+   * Normalizes events into a standard format.
+   * @param filter The filter object for logs (e.g., { address: '0x...', topics: [...] }).
+   * @param callback The function to call with each new normalized event.
+   * @returns A function to unsubscribe from filtered events.
+   */
+  subscribeToLogs(filter: ethers.Filter, callback: (event: NormalizedEvent) => void): () => void {
+    const subscriptionId = generateUuid(); // Unique ID for this filtered subscription
+
+    if (this.provider instanceof ethers.WebSocketProvider) {
+      console.log(`Subscribing to filtered events on ${this.chainId} via WebSocket with filter:`, filter);
+      const listener = async (log: ethers.EventLog) => {
+        try {
+          const block = await this.provider.getBlock(log.blockNumber);
+          const timestamp = block ? block.timestamp * 1000 : Date.now();
+
+          let eventName = 'UnknownEvent';
+          let decodedArgs: { [key: string]: any } = {};
+
+          const abi = await this.getContractABI(log.address);
+          if (abi && abi.length > 0) {
+            const decoded = this.decodeEventLog(log, abi);
+            if (decoded) {
+              eventName = decoded.eventName;
+              decodedArgs = decoded.decodedArgs;
+            }
+          }
+
+          const normalizedEvent: NormalizedEvent = {
+            chainId: this.chainId,
+            blockNumber: log.blockNumber,
+            txHash: log.transactionHash,
+            contractAddress: log.address,
+            eventName,
+            decodedArgs,
+            timestamp
+          };
+          callback(normalizedEvent);
+        } catch (error) {
+          console.error(`Error processing filtered WebSocket event log for ${subscriptionId}:`, error);
+        }
+      };
+      this.provider.on(filter, listener);
+      this.filteredEventListeners.set(subscriptionId, listener); // Store listener with unique ID
+      return () => {
+        this.provider.off(filter, listener);
+        this.filteredEventListeners.delete(subscriptionId);
+        console.log(`Unsubscribed from filtered events on ${this.chainId} with filter:`, filter);
+      };
+    } else {
+      console.log(`Starting polling for filtered events on ${this.chainId} (JSON-RPC) with filter:`, filter);
+      this.startEventPolling(subscriptionId, callback, filter);
+      return () => {
+        this.stopEventPolling(subscriptionId);
+        console.log(`Stopped polling for filtered events on ${this.chainId} with filter:`, filter);
+      };
+    }
+  }
+
+  /**
+   * Fetches the ABI for a given contract address from an Etherscan-like API.
+   * @param address The contract address.
+   * @returns A promise that resolves with the contract's ABI as an array of objects.
+   */
+  async getContractABI(address: string): Promise<any[]> {
     console.log(`Fetching ABI for contract ${address} on ${this.chainId} from Etherscan-like API`);
     
     const etherscanBaseUrls: { [key: string]: string } = {
@@ -88,7 +246,7 @@ export class EVMAdapter extends ChainAdapter {
       const data = await response.json();
 
       if (data.status === '1' && data.result) {
-        return JSON.parse(data.result);
+        return JSON.parse(data.result) as any[];
       } else {
         console.error(`Failed to fetch ABI for ${address}: ${data.result}`);
         return [];
@@ -99,6 +257,11 @@ export class EVMAdapter extends ChainAdapter {
     }
   }
 
+  /**
+   * Fetches the native token balance for a given address.
+   * @param address The wallet address.
+   * @returns A promise that resolves with the balance as a string in ETH/native token units.
+   */
   async getBalance(address: string): Promise<string> {
     console.log(`Fetching balance for ${address} on ${this.chainId}`);
     try {
@@ -110,12 +273,15 @@ export class EVMAdapter extends ChainAdapter {
     }
   }
 
+  /**
+   * Performs a preflight simulation of a transaction using `eth_call`.
+   * @param txPayload The transaction request payload.
+   * @returns A promise that resolves with the simulation result.
+   */
   async simulateTransaction(txPayload: ethers.TransactionRequest): Promise<any> {
     console.log(`Performing preflight simulation (eth_call) on ${this.chainId} for transaction:`, txPayload);
     try {
       const result = await this.provider.call(txPayload);
-      // If call succeeds, it means the transaction would likely not revert
-      // We can also try to estimate gas to see if it's a valid transaction
       const gasEstimate = await this.provider.estimateGas(txPayload);
       return {
         success: true,
@@ -134,6 +300,10 @@ export class EVMAdapter extends ChainAdapter {
     }
   }
 
+  /**
+   * Fetches current gas data for the chain.
+   * @returns A promise that resolves with gas price, max fee per gas, and max priority fee per gas.
+   */
   async fetchGasData(): Promise<any> {
     console.log(`Fetching gas data on ${this.chainId}`);
     try {
@@ -142,7 +312,6 @@ export class EVMAdapter extends ChainAdapter {
         gasPrice: feeData.gasPrice ? feeData.gasPrice.toString() : null,
         maxFeePerGas: feeData.maxFeePerGas ? feeData.maxFeePerGas.toString() : null,
         maxPriorityFeePerGas: feeData.maxPriorityFeePerGas ? feeData.maxPriorityFeePerGas.toString() : null,
-        // Convert to Gwei for easier reading if needed, but keep as string for consistency
       };
     } catch (error) {
       console.error(`Failed to fetch gas data:`, error);
@@ -154,14 +323,42 @@ export class EVMAdapter extends ChainAdapter {
     }
   }
 
-  async fetchState(slotOrBlock: string): Promise<any> {
-    // Implementation for fetching blockchain state (e.g., storage at a specific slot)
-    console.log(`Fetching state ${slotOrBlock} on ${this.chainId} (simulated)`);
-    // This method is highly specific and depends on the exact RPC method (e.g., `eth_getStorageAt`).
-    // For now, it remains a placeholder.
-    return {}; // Return empty state for demo
+  /**
+   * Fetches blockchain state. This is a generic placeholder and its specific implementation
+   * depends on the exact RPC method intended (e.g., `eth_getStorageAt`, `eth_getCode`, etc.).
+   * @param query A string representing the state query (e.g., a contract address, a block hash).
+   * @returns A promise that resolves with the state data.
+   */
+  async fetchState(query: string): Promise<any> {
+    console.warn(`fetchState is a generic placeholder. Specific implementation for state queries is needed.`);
+    try {
+      // Example: If query is a contract address, fetch its code.
+      if (query.startsWith('0x') && query.length === 42) {
+        // Assume it's an address and fetch code
+        const code = await this.provider.getCode(query);
+        return { address: query, code };
+      } else if (query.length === 66 && query.startsWith('0x')) {
+        // Assume it's a block hash
+        const block = await this.provider.getBlock(query);
+        return { blockHash: query, block };
+      } else if (!isNaN(parseInt(query))) {
+        // Assume it's a block number
+        const block = await this.provider.getBlock(parseInt(query));
+        return { blockNumber: query, block };
+      }
+      // For now, return an empty object or throw an error for unsupported queries.
+      return {};
+    } catch (error) {
+      console.error(`Failed to fetch state for query ${query}:`, error);
+      throw error;
+    }
   }
 
+  /**
+   * Fetches event logs based on a query.
+   * @param query The log filter query.
+   * @returns A promise that resolves with an array of raw log objects.
+   */
   async fetchLogs(query: any): Promise<any[]> {
     console.log(`Fetching logs on ${this.chainId} with query:`, query);
     try {
@@ -179,6 +376,11 @@ export class EVMAdapter extends ChainAdapter {
     }
   }
 
+  /**
+   * Sends a signed transaction to the network.
+   * @param signedTx The RLP-encoded signed transaction string.
+   * @returns A promise that resolves with the transaction hash and success status.
+   */
   async sendTransaction(signedTx: string): Promise<{ hash: string; success: boolean; error?: string }> {
     console.log(`Sending signed transaction to ${this.chainId}`);
     try {
@@ -189,6 +391,113 @@ export class EVMAdapter extends ChainAdapter {
     } catch (error: any) {
       console.error(`Failed to send transaction on ${this.chainId}:`, error);
       return { hash: '', success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Decodes an event log using the contract's ABI.
+   * @param log The raw event log from ethers.js.
+   * @param abi The ABI of the contract.
+   * @returns An object containing the event name and decoded arguments, or null if decoding fails.
+   */
+  private decodeEventLog(log: ethers.EventLog, abi: any[]): { eventName: string; decodedArgs: { [key: string]: any } } | null {
+    try {
+      const iface = new ethers.Interface(abi);
+      const parsedLog = iface.parseLog(log);
+      if (parsedLog) {
+        return {
+          eventName: parsedLog.name,
+          decodedArgs: parsedLog.args.toObject(),
+        };
+      }
+    } catch (error) {
+      // console.warn(`Failed to decode event log for contract ${log.address}:`, error);
+    }
+    return null;
+  }
+
+  /**
+   * Starts polling for events on JSON-RPC providers.
+   * @param subscriptionId A unique ID for this subscription.
+   * @param callback The callback function to receive normalized events.
+   * @param filter Optional filter for logs.
+   */
+  private startEventPolling(subscriptionId: string, callback: (event: NormalizedEvent) => void, filter?: ethers.Filter): void {
+    if (this.eventPollingIntervals.has(subscriptionId)) {
+      clearInterval(this.eventPollingIntervals.get(subscriptionId)!);
+    }
+    const interval = setInterval(() => this.pollEvents(subscriptionId, callback, filter), this.eventPollingRate);
+    this.eventPollingIntervals.set(subscriptionId, interval);
+    console.log(`Started event polling for ${subscriptionId} on ${this.chainId} with interval ${this.eventPollingRate}ms.`);
+  }
+
+  /**
+   * Stops polling for events for a specific subscription.
+   * @param subscriptionId The ID of the subscription to stop.
+   */
+  private stopEventPolling(subscriptionId: string): void {
+    if (this.eventPollingIntervals.has(subscriptionId)) {
+      clearInterval(this.eventPollingIntervals.get(subscriptionId)!);
+      this.eventPollingIntervals.delete(subscriptionId);
+      this.lastProcessedBlockNumbers.delete(subscriptionId);
+      console.log(`Stopped event polling for ${subscriptionId} on ${this.chainId}.`);
+    }
+  }
+
+  /**
+   * Polls for events within new blocks.
+   * @param subscriptionId The ID of the subscription.
+   * @param callback The callback function to receive normalized events.
+   * @param filter Optional filter for logs.
+   */
+  private async pollEvents(subscriptionId: string, callback: (event: NormalizedEvent) => void, filter?: ethers.Filter): Promise<void> {
+    try {
+      const currentBlockNumber = await this.provider.getBlockNumber();
+      let lastBlock = this.lastProcessedBlockNumbers.get(subscriptionId);
+
+      if (lastBlock === undefined || lastBlock === null) {
+        lastBlock = currentBlockNumber - 10; // Start from 10 blocks back or a configurable value
+        if (lastBlock < 0) lastBlock = 0;
+      }
+
+      if (currentBlockNumber > lastBlock) {
+        const logs = await this.provider.getLogs({
+          fromBlock: lastBlock + 1,
+          toBlock: currentBlockNumber,
+          ...filter
+        });
+
+        for (const log of logs) {
+          const block = await this.provider.getBlock(log.blockNumber);
+          const timestamp = block ? block.timestamp * 1000 : Date.now();
+
+          let eventName = 'UnknownEvent';
+          let decodedArgs: { [key: string]: any } = {};
+
+          const abi = await this.getContractABI(log.address);
+          if (abi && abi.length > 0) {
+            const decoded = this.decodeEventLog(log, abi);
+            if (decoded) {
+              eventName = decoded.eventName;
+              decodedArgs = decoded.decodedArgs;
+            }
+          }
+
+          const normalizedEvent: NormalizedEvent = {
+            chainId: this.chainId,
+            blockNumber: log.blockNumber,
+            txHash: log.transactionHash,
+            contractAddress: log.address,
+            eventName,
+            decodedArgs,
+            timestamp
+          };
+          callback(normalizedEvent);
+        }
+        this.lastProcessedBlockNumbers.set(subscriptionId, currentBlockNumber);
+      }
+    } catch (error) {
+      console.error(`Error polling events for ${subscriptionId} on ${this.chainId}:`, error);
     }
   }
 }
