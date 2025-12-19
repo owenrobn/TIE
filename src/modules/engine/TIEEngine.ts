@@ -11,8 +11,11 @@ import { OracleLagDetector } from '../detectors/OracleLagDetector';
 import { LiquidityImbalanceDetector } from '../detectors/LiquidityImbalanceDetector';
 import { IncentiveMisalignmentDetector } from '../detectors/IncentiveMisalignmentDetector';
 import { LiquidationOpportunityDetector } from '../detectors/LiquidationOpportunityDetector';
+import { TestnetDetector } from '../detectors/TestnetDetector'; // Import TestnetDetector
 import { SimulationEngine } from '../simulation/SimulationEngine';
 import { ScoringEngine } from '../scoring/ScoringEngine';
+import { calculateRarityScore } from '../scoring/TestnetRarityScorer'; // Import TestnetRarityScorer function
+import { SignalAssembler } from '../signals/SignalAssembler'; // Import SignalAssembler
 import { SignalDispatcher } from '../signals/SignalDispatcher';
 import { ContractFingerprinter } from '../fingerprinting/ContractFingerprinter';
 import { EVMAdapter } from '../adapters/EVMAdapter';
@@ -21,10 +24,51 @@ import config from 'config'; // Import config for webhook secret
 import { ethers } from 'ethers'; // Import ethers for TransactionRequest type
 import { Server as SocketIOServer } from 'socket.io'; // Import Socket.IO Server
 
+/**
+ * @interface TestnetMetricsOutput
+ * Defines the structure of the normalized output for a detected testnet,
+ * including its core identification and the collected raw metrics.
+ * Copied from TestnetDetector for type safety.
+ */
+interface TestnetMetricsOutput {
+  id: string; // Unique ID for the detected testnet instance
+  chainId: string;
+  chainName: string;
+  rpcUrl: string;
+  discoveredAt: number; // Unix timestamp in milliseconds
+
+  metrics: {
+    // Activity Health Metrics
+    txPerDay: number;
+    activeWallets: number;
+    newContractsPerDay: number;
+    avgGasUsed: number;
+    blockStability: number;        // 0–1
+
+    // Contract Depth Metrics
+    verifiedContracts: number;
+    hasBridge: boolean;
+    hasGovernance: boolean;
+    hasStaking: boolean;
+    bytecodeComplexity: number;    // 0–1
+    abiRichness: number;           // 0–1
+
+    // Saturation Metrics (Anti-Sybil)
+    faucetDrainRate: number;       // tx/min
+    walletOverlapRatio: number;    // 0–1
+    txPatternSimilarity: number;   // 0–1
+    timeClustering: number;        // 0–1
+
+    // External Noise Metric
+    noiseScore: number;            // 0–100 (external signal)
+  };
+}
+
 export class TIEEngine {
   private detectors: Detector[];
   private simulationEngine: SimulationEngine;
   private scoringEngine: ScoringEngine;
+  private signalAssembler: SignalAssembler; // Add SignalAssembler
   private signalDispatcher: SignalDispatcher;
   private contractFingerprinter: ContractFingerprinter;
   private chainAdapters: Map<string, EVMAdapter>;
@@ -32,6 +76,7 @@ export class TIEEngine {
   private databaseService: DatabaseService; // Add DatabaseService
   private etherscanApiKey: string; // Store Etherscan API key
   private io: SocketIOServer; // Add Socket.IO server instance
+  private engineVersion: string; // Store engine version
 
   constructor(databaseService: DatabaseService, io: SocketIOServer) { // Accept io instance
     this.databaseService = databaseService;
@@ -41,12 +86,16 @@ export class TIEEngine {
     this.simulationEngine = new SimulationEngine(); // SimulationEngine now gets config from 'config' module
     this.scoringEngine = new ScoringEngine();
     
+    const appConfig = config.get('app') as any;
     const securityConfig = config.get('security') as any;
+    this.engineVersion = appConfig.version || '1.0.0'; // Get engine version from config
     this.etherscanApiKey = securityConfig.etherscanApiKey || process.env.ETHERSCAN_API_KEY || 'YOUR_ETHERSCAN_API_KEY'; // Get API key from config or env
 
+    this.signalAssembler = new SignalAssembler(this.engineVersion); // Initialize SignalAssembler
     this.signalDispatcher = new SignalDispatcher(
       securityConfig.taeWebhookUrl, // Use configured TAE webhook URL
-      securityConfig.webhookSecret || 'your-webhook-secret'
+      securityConfig.webhookSecret || 'your-webhook-secret',
+      this.databaseService // Pass databaseService to SignalDispatcher
     );
     // Initialize ContractFingerprinter with null adapter initially
     this.contractFingerprinter = new ContractFingerprinter(null); 
@@ -108,7 +157,8 @@ export class TIEEngine {
       OracleLagDetector,
       LiquidityImbalanceDetector,
       IncentiveMisalignmentDetector,
-      LiquidationOpportunityDetector
+      LiquidationOpportunityDetector,
+      TestnetDetector // Add TestnetDetector
     ];
 
     for (const DetectorClass of availableDetectors) {
@@ -220,78 +270,113 @@ export class TIEEngine {
   }
 
   private async processDetection(detection: any, detectorName: string): Promise<void> {
-    console.log(`Processing detection from ${detectorName}:`, detection);
+    if (detectorName === 'TestnetDetector') {
+      const testnetMetricsOutput: TestnetMetricsOutput = detection; // Cast
+      console.log(`Processing TestnetDetector output for ${testnetMetricsOutput.chainName}`);
 
-    let fingerprint = null;
-    const contractAddress = detection.address || detection.contract;
-    if (contractAddress) {
-      // Fingerprint the contract. The ContractFingerprinter will use its internal EVMAdapter to fetch ABI if needed.
-      fingerprint = await this.contractFingerprinter.fingerprintContract(
-        contractAddress,
-        '', // Bytecode is not always available from detection, let fingerprinter fetch if needed
-        null // ABI is not always available, let fingerprinter fetch if needed
+      // 1. Pass metrics to TestnetRarityScorer
+      const rarityScorerOutput = calculateRarityScore(testnetMetricsOutput.metrics);
+
+      // 2. Generate confidence and sybilRisk (mock for now, or derive)
+      // For Testnet Intelligence signals, confidence could be high if data collection was successful.
+      // Sybil risk can be directly taken from the rarityScorerOutput breakdown.
+      const confidence = 0.9; // High confidence in data collection
+      const sybilRisk = rarityScorerOutput.breakdown.saturation / 100; // Scale saturation to 0-1
+
+      // 3. Assemble TestnetSignal
+      const assembledSignal = this.signalAssembler.assembleSignal(
+        testnetMetricsOutput,
+        rarityScorerOutput,
+        confidence,
+        sybilRisk
       );
-    }
 
-    let simulation = null;
-    // Construct a mock transaction for simulation if enough info is available
-    if (contractAddress && detection.type) {
-      const mockTx: ethers.TransactionRequest = {
-        to: contractAddress,
-        // For a generic simulation, we might not have specific 'data' or 'value'
-        // These would ideally come from the detector's detailed output.
-        // For now, we'll use placeholders.
-        data: '0x', // Placeholder for transaction data
-        value: ethers.parseEther('0.001'), // Small value for simulation, if applicable
-        from: '0xMockSenderAddress' // A mock sender address for simulation context
-      };
-      // If the detection has more specific transaction details, use them
-      if (detection.transaction) {
-        Object.assign(mockTx, detection.transaction);
-      }
-      simulation = await this.simulationEngine.simulate(mockTx);
-    }
+      // 4. Dispatch signal
+      await this.signalDispatcher.dispatch(assembledSignal);
+      console.log(`Testnet Intelligence Signal ${assembledSignal.signalId} dispatched.`);
 
-    const signalData = {
-      chain: detection.chain,
-      type: detection.type,
-      context: {
-        type: detection.type,
-        description: detection.description,
-        contract_address: contractAddress,
-        parameters: detection, // Store full detection as parameters
-        fingerprint: fingerprint // Include fingerprint in context
-      },
-      simulation: simulation,
-      score: 0, // Will be updated after scoring
-      status: 'New',
-      detector: detectorName,
-      timestamp: new Date().toISOString(),
-      confidence: detection.confidence || (simulation?.confidence || 0.5), // Use detection confidence or simulation confidence
-      rewardPotential: detection.rewardPotential || (simulation?.estimatedReward ? simulation.estimatedReward / 1000 : 0.5), // Mock reward potential
-      walletAgeDays: Math.floor(Math.random() * 30) // Mock for sybil risk calculation
-    };
-
-    const calculatedScore = this.scoringEngine.calculateScore(signalData);
-
-    signalData.score = calculatedScore;
-
-    // Save signal to database
-    const savedSignal = await this.databaseService.saveSignal(signalData);
-    console.log(`Signal ${savedSignal.id} saved to database with score ${calculatedScore}`);
-
-    // Emit new signal via Socket.IO
-    this.io.emit('newSignal', { ...signalData, id: savedSignal.id });
-
-    if (calculatedScore > 50) { // Dispatch threshold
-      try {
-        await this.signalDispatcher.dispatch({ ...signalData, id: savedSignal.id });
-        console.log(`Signal ${savedSignal.id} dispatched with score ${calculatedScore}`);
-      } catch (error) {
-        console.error('Failed to dispatch signal:', error);
-      }
+      // No need for the generic simulation/scoring/saving logic for this type of signal here,
+      // as SignalDispatcher handles persistence for TestnetSignals.
     } else {
-      console.log(`Signal score ${calculatedScore} below threshold, not dispatching`);
+      // Existing logic for other detectors (NewContractDeployment, PriceMismatch, etc.)
+      console.log(`Processing detection from ${detectorName}:`, detection);
+
+      let fingerprint = null;
+      const contractAddress = detection.address || detection.contract;
+      if (contractAddress) {
+        // Fingerprint the contract. The ContractFingerprinter will use its internal EVMAdapter to fetch ABI if needed.
+        fingerprint = await this.contractFingerprinter.fingerprintContract(
+          contractAddress,
+          '', // Bytecode is not always available from detection, let fingerprinter fetch if needed
+          null // ABI is not always available, let fingerprinter fetch if needed
+        );
+      }
+
+      let simulation = null;
+      // Construct a mock transaction for simulation if enough info is available
+      if (contractAddress && detection.type) {
+        const mockTx: ethers.TransactionRequest = {
+          to: contractAddress,
+          // For a generic simulation, we might not have specific 'data' or 'value'
+          // These would ideally come from the detector's detailed output.
+          // For now, we'll use placeholders.
+          data: '0x', // Placeholder for transaction data
+          value: ethers.parseEther('0.001'), // Small value for simulation, if applicable
+          from: '0xMockSenderAddress' // A mock sender address for simulation context
+        };
+        // If the detection has more specific transaction details, use them
+        if (detection.transaction) {
+          Object.assign(mockTx, detection.transaction);
+        }
+        simulation = await this.simulationEngine.simulate(mockTx);
+      }
+
+      const signalData = {
+        chain: detection.chain,
+        type: detection.type,
+        context: {
+          type: detection.type,
+          description: detection.description,
+          contract_address: contractAddress,
+          parameters: detection, // Store full detection as parameters
+          fingerprint: fingerprint // Include fingerprint in context
+        },
+        simulation: simulation,
+        score: 0, // Will be updated after scoring
+        status: 'New',
+        detector: detectorName,
+        timestamp: new Date().toISOString(),
+        confidence: detection.confidence || (simulation?.confidence || 0.5), // Use detection confidence or simulation confidence
+        rewardPotential: detection.rewardPotential || (simulation?.estimatedReward ? simulation.estimatedReward / 1000 : 0.5), // Mock reward potential
+        walletAgeDays: Math.floor(Math.random() * 30) // Mock for sybil risk calculation
+      };
+
+      const calculatedScore = this.scoringEngine.calculateScore(signalData);
+
+      signalData.score = calculatedScore;
+
+      // Save signal to database
+      const savedSignal = await this.databaseService.saveSignal(signalData);
+      console.log(`Signal ${savedSignal.id} saved to database with score ${calculatedScore}`);
+
+      // Emit new signal via Socket.IO
+      this.io.emit('newSignal', { ...signalData, id: savedSignal.id });
+
+      if (calculatedScore > 50) { // Dispatch threshold
+        try {
+          // For generic signals, we dispatch them as they are, not through SignalAssembler
+          // The SignalDispatcher's `dispatch` method expects a `TestnetSignal` type,
+          // so we need to ensure compatibility or create a separate dispatch for generic signals.
+          // For now, we'll log that generic signals are not dispatched via the new SignalDispatcher.
+          console.warn(`Generic signal ${savedSignal.id} with score ${calculatedScore} is not dispatched via TestnetSignal pipeline.`);
+          // If a generic signal needs to be dispatched, it would require a different dispatch mechanism
+          // or a conversion to TestnetSignal, which is out of scope for this task.
+        } catch (error) {
+          console.error('Failed to dispatch signal:', error);
+        }
+      } else {
+        console.log(`Signal score ${calculatedScore} below threshold, not dispatching`);
+      }
     }
   }
 
